@@ -1,0 +1,91 @@
+#!/usr/bin/env python
+
+"""The commit-msg Git hook to check the commit message."""
+
+import sys
+from enum import Enum
+
+
+class BColors(str, Enum):
+    """A Enum for colors using ANSI escape sequences.
+    Reference:
+    - https://stackoverflow.com/questions/287871
+    """
+
+    OK = "\u001b[32m"
+    INFO = "\u001b[33m"
+    WARNING = "\u001b[34m"
+    ERROR = "\u001b[35m"
+    BOLD = "\u001b[1m"
+    ENDC = "\u001b[0m"
+
+
+class Notification(str, Enum):
+    """An Enum for notification levels."""
+
+    OK = "OK"
+    INFO = "INFO"
+    WARNING = "WARNING"
+    ERROR = "ERROR"
+
+
+def print_with_color(message: str, level: Notification) -> None:
+    """Print the message with a color for the corresponding level.
+    Args:
+        message (str): message from the pattern
+        level (str): notification message level [OK, INFO, WARNING, ERROR]
+    """
+    print(
+        f"{BColors[level]}{BColors.BOLD}{level}: [Policy]{message}{BColors.ENDC}"  # pylint: disable=line-too-long
+    )
+
+
+def check_tag(title: str) -> bool:
+    """Checks the title of the commit message
+    Args:
+        title (str): first line of the commit message
+    Returns:
+        bool: Check whether the tag of the commit message is valid or not.
+    """
+    tags = ["chore", "feat", "fix", "test", "docs"]
+    for tag in tags:
+        tag += ":"
+        if title.startswith(tag):
+            return True
+    return False
+
+
+def check_commit_msg_pattern() -> None:
+    """Check the format of the commit message.
+    The argument passed to the "commmit-msg" hook is the path to a
+    temporary file that contains the commit message written by the
+    developer.
+    """
+    msg_temp = sys.argv[1]
+
+    with open(msg_temp, "r", encoding="utf-8") as f_msg:
+        lines = f_msg.readlines()
+
+    has_story_tag = False
+    has_warning = False
+
+    if len(lines[0]) > 72:
+        has_warning = True
+        message = "Commit title max len must be less than 72 chars."
+        print_with_color(message, Notification.WARNING)
+    if check_tag(lines[0]):
+        has_story_tag = True
+
+    if not has_story_tag:
+        message = "Please add a tag in the commit message."
+        print_with_color(message, Notification.WARNING)
+        sys.exit(1)
+    if not has_warning:
+        message = """Please follow the commit message pattern rules.
+        e.g: [commit-tag]:[commit-message]"""
+        print_with_color(message, Notification.OK)
+
+
+if __name__ == "__main__":
+    check_commit_msg_pattern()
+    
