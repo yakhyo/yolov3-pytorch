@@ -23,11 +23,15 @@ import torchvision
 from src.utils.metrics import box_iou
 
 # Settings
-torch.set_printoptions(linewidth=320, precision=5, profile='long')
-np.set_printoptions(linewidth=320, formatter={'float_kind': '{:11.5g}'.format})  # format short g, %precision=5
+torch.set_printoptions(linewidth=320, precision=5, profile="long")
+np.set_printoptions(
+    linewidth=320, formatter={"float_kind": "{:11.5g}".format}
+)  # format short g, %precision=5
 pd.options.display.max_columns = 10
-cv2.setNumThreads(0)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
-os.environ['NUMEXPR_MAX_THREADS'] = str(min(os.cpu_count(), 8))  # NumExpr max threads
+cv2.setNumThreads(
+    0
+)  # prevent OpenCV from multithreading (incompatible with PyTorch DataLoader)
+os.environ["NUMEXPR_MAX_THREADS"] = str(min(os.cpu_count(), 8))  # NumExpr max threads
 
 FILE = Path(__file__).resolve()
 ROOT = FILE.parents[1]  # root directory
@@ -35,7 +39,7 @@ ROOT = FILE.parents[1]  # root directory
 
 class Timeout(contextlib.ContextDecorator):
     # Usage: @Timeout(seconds) decorator or 'with Timeout(seconds):' context manager
-    def __init__(self, seconds, *, timeout_msg='', suppress_timeout_errors=True):
+    def __init__(self, seconds, *, timeout_msg="", suppress_timeout_errors=True):
         self.seconds = int(seconds)
         self.timeout_message = timeout_msg
         self.suppress = bool(suppress_timeout_errors)
@@ -68,21 +72,28 @@ def init_seeds(seed=0):
     # Initialize random number generator (RNG) seeds https://pytorch.org/docs/stable/notes/randomness.html
     # cudnn seed 0 settings are slower and more reproducible, else faster and less reproducible
     import torch.backends.cudnn as cudnn
+
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     cudnn.benchmark, cudnn.deterministic = (False, True) if seed == 0 else (True, False)
 
 
-def user_config_dir(dir='Ultralytics', env_var='YOLOV3_CONFIG_DIR'):
+def user_config_dir(dir="Ultralytics", env_var="YOLOV3_CONFIG_DIR"):
     # Return path of user configuration directory. Prefer environment variable if exists. Make dir if required.
     env = os.getenv(env_var)
     if env:
         path = Path(env)  # use environment variable
     else:
-        cfg = {'Windows': 'AppData/Roaming', 'Linux': '.config', 'Darwin': 'Library/Application Support'}  # 3 OS dirs
-        path = Path.home() / cfg.get(platform.system(), '')  # OS-specific config dir
-        path = (path if is_writeable(path) else Path('/tmp')) / dir  # GCP and AWS lambda fix, only /tmp is writeable
+        cfg = {
+            "Windows": "AppData/Roaming",
+            "Linux": ".config",
+            "Darwin": "Library/Application Support",
+        }  # 3 OS dirs
+        path = Path.home() / cfg.get(platform.system(), "")  # OS-specific config dir
+        path = (
+            path if is_writeable(path) else Path("/tmp")
+        ) / dir  # GCP and AWS lambda fix, only /tmp is writeable
     path.mkdir(exist_ok=True)  # make if required
     return path
 
@@ -90,9 +101,9 @@ def user_config_dir(dir='Ultralytics', env_var='YOLOV3_CONFIG_DIR'):
 def is_writeable(dir, test=False):
     # Return True if directory has write permissions, test opening a file with write permissions if test=True
     if test:  # method 1
-        file = Path(dir) / 'tmp.txt'
+        file = Path(dir) / "tmp.txt"
         try:
-            with open(file, 'w'):  # open file with write permissions
+            with open(file, "w"):  # open file with write permissions
                 pass
             file.unlink()  # remove file
             return True
@@ -102,15 +113,19 @@ def is_writeable(dir, test=False):
         return os.access(dir, os.R_OK)  # possible issues on Windows
 
 
-def is_ascii(s=''):
+def is_ascii(s=""):
     # Is string composed of all ASCII (no UTF) characters? (note str().isascii() introduced in python 3.7)
     s = str(s)  # convert list, tuple, None, etc. to str
-    return len(s.encode().decode('ascii', 'ignore')) == len(s)
+    return len(s.encode().decode("ascii", "ignore")) == len(s)
 
 
-def emojis(str=''):
+def emojis(str=""):
     # Return platform-dependent emoji-safe version of string
-    return str.encode().decode('ascii', 'ignore') if platform.system() == 'Windows' else str
+    return (
+        str.encode().decode("ascii", "ignore")
+        if platform.system() == "Windows"
+        else str
+    )
 
 
 def check_img_size(imgsz, s=32, floor=0):
@@ -120,7 +135,9 @@ def check_img_size(imgsz, s=32, floor=0):
     else:  # list i.e. img_size=[640, 480]
         new_size = [max(make_divisible(x, int(s)), floor) for x in imgsz]
     if new_size != imgsz:
-        print(f'WARNING: --img-size {imgsz} must be multiple of max stride {s}, updating to {new_size}')
+        print(
+            f"WARNING: --img-size {imgsz} must be multiple of max stride {s}, updating to {new_size}"
+        )
     return new_size
 
 
@@ -131,27 +148,31 @@ def make_divisible(x, divisor):
 
 def colorstr(*input):
     # Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code, i.e.  colorstr('blue', 'hello world')
-    *args, string = input if len(input) > 1 else ('blue', 'bold', input[0])  # color arguments, string
-    colors = {'black': '\033[30m',  # basic colors
-              'red': '\033[31m',
-              'green': '\033[32m',
-              'yellow': '\033[33m',
-              'blue': '\033[34m',
-              'magenta': '\033[35m',
-              'cyan': '\033[36m',
-              'white': '\033[37m',
-              'bright_black': '\033[90m',  # bright colors
-              'bright_red': '\033[91m',
-              'bright_green': '\033[92m',
-              'bright_yellow': '\033[93m',
-              'bright_blue': '\033[94m',
-              'bright_magenta': '\033[95m',
-              'bright_cyan': '\033[96m',
-              'bright_white': '\033[97m',
-              'end': '\033[0m',  # misc
-              'bold': '\033[1m',
-              'underline': '\033[4m'}
-    return ''.join(colors[x] for x in args) + f'{string}' + colors['end']
+    *args, string = (
+        input if len(input) > 1 else ("blue", "bold", input[0])
+    )  # color arguments, string
+    colors = {
+        "black": "\033[30m",  # basic colors
+        "red": "\033[31m",
+        "green": "\033[32m",
+        "yellow": "\033[33m",
+        "blue": "\033[34m",
+        "magenta": "\033[35m",
+        "cyan": "\033[36m",
+        "white": "\033[37m",
+        "bright_black": "\033[90m",  # bright colors
+        "bright_red": "\033[91m",
+        "bright_green": "\033[92m",
+        "bright_yellow": "\033[93m",
+        "bright_blue": "\033[94m",
+        "bright_magenta": "\033[95m",
+        "bright_cyan": "\033[96m",
+        "bright_white": "\033[97m",
+        "end": "\033[0m",  # misc
+        "bold": "\033[1m",
+        "underline": "\033[4m",
+    }
+    return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
 
 
 def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
@@ -160,9 +181,88 @@ def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
     # b = np.loadtxt('data/coco_paper.names', dtype='str', delimiter='\n')
     # x1 = [list(a[i] == b).index(True) + 1 for i in range(80)]  # darknet to coco
     # x2 = [list(b[i] == a).index(True) if any(b[i] == a) else None for i in range(91)]  # coco to darknet
-    x = [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34,
-         35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-         64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90]
+    x = [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        28,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        70,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+    ]
     return x
 
 
@@ -189,8 +289,12 @@ def xywh2xyxy(x):
 def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
     # Rescale coords (xyxy) from img1_shape to img0_shape
     if ratio_pad is None:  # calculate from img0_shape
-        gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
-        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (img1_shape[0] - img0_shape[0] * gain) / 2  # wh padding
+        gain = min(
+            img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1]
+        )  # gain  = old / new
+        pad = (img1_shape[1] - img0_shape[1] * gain) / 2, (
+            img1_shape[0] - img0_shape[0] * gain
+        ) / 2  # wh padding
     else:
         gain = ratio_pad[0][0]
         pad = ratio_pad[1]
@@ -214,11 +318,22 @@ def clip_coords(boxes, shape):
         boxes[:, [1, 3]] = boxes[:, [1, 3]].clip(0, shape[0])  # y1, y2
 
 
-def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False,
-                        max_det=300):
+def non_max_suppression(
+    prediction,
+    conf_thres=0.25,
+    iou_thres=0.45,
+    classes=None,
+    agnostic=False,
+    multi_label=False,
+    max_det=300,
+):
     # Checks
-    assert 0 <= conf_thres <= 1, f'Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0'
-    assert 0 <= iou_thres <= 1, f'Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0'
+    assert (
+        0 <= conf_thres <= 1
+    ), f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"
+    assert (
+        0 <= iou_thres <= 1
+    ), f"Invalid IoU {iou_thres}, valid values are between 0.0 and 1.0"
 
     bs = prediction.shape[0]  # batch size
     nc = prediction.shape[2] - 5  # number of classes
@@ -272,43 +387,51 @@ def non_max_suppression(prediction, conf_thres=0.25, iou_thres=0.45, classes=Non
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         if i.shape[0] > max_det:  # limit detections
             i = i[:max_det]
-        if merge and (1 < n < 3E3):  # Merge NMS (boxes merged using weighted mean)
+        if merge and (1 < n < 3e3):  # Merge NMS (boxes merged using weighted mean)
             # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
             iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
             weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
+            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(
+                1, keepdim=True
+            )  # merged boxes
             if redundant:
                 i = i[iou.sum(1) > 1]  # require redundancy
 
         output[xi] = x[i]
         if (time.time() - t) > time_limit:
-            print(f'WARNING: NMS time limit {time_limit}s exceeded')
+            print(f"WARNING: NMS time limit {time_limit}s exceeded")
             break  # time limit exceeded
 
     return output
 
 
-def strip_optimizer(f='best.pt', s=''):  # from utils.general import *; strip_optimizer()
+def strip_optimizer(
+    f="best.pt", s=""
+):  # from utils.general import *; strip_optimizer()
     # Strip optimizer from 'f' to finalize training, optionally save as 's'
-    x = torch.load(f, map_location=torch.device('cpu'))
-    if x.get('ema'):
-        x['model'] = x['ema']  # replace model with ema
-    for k in 'optimizer', 'training_results', 'ema', 'updates':  # keys
+    x = torch.load(f, map_location=torch.device("cpu"))
+    if x.get("ema"):
+        x["model"] = x["ema"]  # replace model with ema
+    for k in "optimizer", "training_results", "ema", "updates":  # keys
         x[k] = None
     # x['epoch'] = -1 # ignore for now
-    x['model'].half()  # to FP16
-    for p in x['model'].parameters():
+    x["model"].half()  # to FP16
+    for p in x["model"].parameters():
         p.requires_grad = False
     torch.save(x, s or f)
-    mb = os.path.getsize(s or f) / 1E6  # filesize
-    print(f"Optimizer stripped from {f},{(' saved as %s,' % s) if s else ''} {mb:.1f}MB")
+    mb = os.path.getsize(s or f) / 1e6  # filesize
+    print(
+        f"Optimizer stripped from {f},{(' saved as %s,' % s) if s else ''} {mb:.1f}MB"
+    )
 
 
-def increment_path(path, exist_ok=False, sep='', mkdir=False):
+def increment_path(path, exist_ok=False, sep="", mkdir=False):
     # Increment file or directory path, i.e. runs/exp --> runs/exp{sep}2, runs/exp{sep}3, ... etc.
     path = Path(path)  # os-agnostic
     if path.exists() and not exist_ok:
-        path, suffix = (path.with_suffix(''), path.suffix) if path.is_file() else (path, '')
+        path, suffix = (
+            (path.with_suffix(""), path.suffix) if path.is_file() else (path, "")
+        )
         dirs = glob.glob(f"{path}{sep}*")  # similar paths
         matches = [re.search(rf"%s{sep}(\d+)" % path.stem, d) for d in dirs]
         i = [int(m.groups()[0]) for m in matches if m]  # indices
