@@ -502,7 +502,7 @@ def parse_opt(known=False):
     parser.add_argument(
         "--hyp",
         type=str,
-        default="./data/hyps/hyp.scratch.yaml",
+        default="./configs/hyp.scratch.yaml",
         help="hyperparameters path",
     )
     parser.add_argument("--epochs", type=int, default=200)
