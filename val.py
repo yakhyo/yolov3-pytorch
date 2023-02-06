@@ -11,7 +11,6 @@ import json
 import os
 import sys
 from pathlib import Path
-from threading import Thread
 
 import numpy as np
 import torch
@@ -37,7 +36,6 @@ from utils.general import (
     xyxy2xywh,
 )
 from utils.metrics import ConfusionMatrix, ap_per_class
-from utils.plots import output_to_target, plot_images
 from utils.torch_utils import time_sync
 
 
@@ -259,12 +257,6 @@ def run(
                 save_one_txt(predn, save_conf, shape, file=save_dir / "labels" / (path.stem + ".txt"))
             if save_json:
                 save_one_json(predn, jdict, path, class_map)  # append to COCO-JSON dictionary
-        # Plot images
-        if plots and batch_i < 3:
-            f = f"./weights/val_batch{batch_i}_labels.jpg"  # labels
-            Thread(target=plot_images, args=(images, targets, paths, f, names), daemon=True).start()
-            f = f"./weights/val_batch{batch_i}_pred.jpg"  # predictions
-            Thread(target=plot_images, args=(images, output_to_target(out), paths, f, names), daemon=True).start()
 
     # Compute metrics
     stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy

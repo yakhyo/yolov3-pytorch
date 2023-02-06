@@ -2,19 +2,21 @@
 """
 Dataloaders and dataset utils
 """
-import glob
-import hashlib
-import math
 import os
+import glob
+
+import math
 import random
+import hashlib
+import numpy as np
+from tqdm import tqdm
 from pathlib import Path
 
 import cv2
-import numpy as np
-import torch
 from PIL import Image
+
+import torch
 from torch.utils.data import DataLoader, Dataset, distributed
-from tqdm import tqdm
 
 from utils import LOGGER
 from utils.general import clip_coords

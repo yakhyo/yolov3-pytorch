@@ -29,7 +29,6 @@ from utils.datasets import create_dataloader
 from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
 from utils.loss import ComputeLoss
 from utils.metrics import fitness
-from utils.plots import plot_labels
 from utils.torch_utils import EarlyStopping, ModelEMA, torch_distributed_zero_first
 from utils import LOGGER
 
@@ -233,8 +232,6 @@ def train(hyp, opt, device):
 
         if not resume:
             labels = np.concatenate(dataset.labels, 0)
-            if plots:
-                plot_labels(labels, names, save_dir)
 
             # Anchors
             if not opt.noautoanchor:
