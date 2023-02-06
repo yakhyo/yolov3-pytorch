@@ -173,9 +173,7 @@ class ConfusionMatrix:
         try:
             import seaborn as sn
 
-            array = self.matrix / (
-                (self.matrix.sum(0).reshape(1, -1) + 1e-6) if normalize else 1
-            )  # normalize columns
+            array = self.matrix / ((self.matrix.sum(0).reshape(1, -1) + 1e-6) if normalize else 1)  # normalize columns
             array[array < 0.005] = np.nan  # don't annotate (would appear as 0.00)
 
             fig = plt.figure(figsize=(12, 9), tight_layout=True)
@@ -184,9 +182,7 @@ class ConfusionMatrix:
                 names
             ) == self.nc  # apply names to ticklabels
             with warnings.catch_warnings():
-                warnings.simplefilter(
-                    "ignore"
-                )  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
+                warnings.simplefilter("ignore")  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
                 sn.heatmap(
                     array,
                     annot=self.nc < 30,
@@ -232,14 +228,14 @@ def box_iou(box1, box2):
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
     inter = (
         (
-            torch.min(box1[:, None, 2:], box2[:, 2:])
-            - torch.max(box1[:, None, :2], box2[:, :2])
+                torch.min(box1[:, None, 2:], box2[:, 2:])
+                - torch.max(box1[:, None, :2], box2[:, :2])
         )
         .clamp(0)
         .prod(2)
     )
     return inter / (
-        area1[:, None] + area2 - inter
+            area1[:, None] + area2 - inter
     )  # iou = inter / (area1 + area2 - inter)
 
 
@@ -253,19 +249,11 @@ def plot_pr_curve(px, py, ap, save_dir="pr_curve.png", names=()):
 
     if 0 < len(names) < 21:  # display per-class legend if < 21 classes
         for i, y in enumerate(py.T):
-            ax.plot(
-                px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}"
-            )  # plot(recall, precision)
+            ax.plot(px, y, linewidth=1, label=f"{names[i]} {ap[i, 0]:.3f}")  # plot(recall, precision)
     else:
         ax.plot(px, py, linewidth=1, color="grey")  # plot(recall, precision)
 
-    ax.plot(
-        px,
-        py.mean(1),
-        linewidth=3,
-        color="blue",
-        label="all classes %.3f mAP@0.5" % ap[:, 0].mean(),
-    )
+    ax.plot(px, py.mean(1), linewidth=3, color="blue", label="all classes %.3f mAP@0.5" % ap[:, 0].mean())
     ax.set_xlabel("Recall")
     ax.set_ylabel("Precision")
     ax.set_xlim(0, 1)
@@ -275,9 +263,7 @@ def plot_pr_curve(px, py, ap, save_dir="pr_curve.png", names=()):
     plt.close()
 
 
-def plot_mc_curve(
-    px, py, save_dir="mc_curve.png", names=(), xlabel="Confidence", ylabel="Metric"
-):
+def plot_mc_curve(px, py, save_dir="mc_curve.png", names=(), xlabel="Confidence", ylabel="Metric"):
     # Metric-confidence curve
     fig, ax = plt.subplots(1, 1, figsize=(9, 6), tight_layout=True)
 
@@ -288,13 +274,7 @@ def plot_mc_curve(
         ax.plot(px, py.T, linewidth=1, color="grey")  # plot(confidence, metric)
 
     y = py.mean(0)
-    ax.plot(
-        px,
-        y,
-        linewidth=3,
-        color="blue",
-        label=f"all classes {y.max():.2f} at {px[y.argmax()]:.3f}",
-    )
+    ax.plot(px, y, linewidth=3, color="blue", label=f"all classes {y.max():.2f} at {px[y.argmax()]:.3f}")
     ax.set_xlabel(xlabel)
     ax.set_ylabel(ylabel)
     ax.set_xlim(0, 1)

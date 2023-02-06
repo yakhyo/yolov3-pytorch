@@ -36,9 +36,7 @@ class TinyBackbone(nn.Module):
         self.b8 = Conv(in_channels=128, out_channels=256, kernel_size=3, stride=1)  # 8
 
         self.b9 = nn.MaxPool2d(kernel_size=2, stride=2, padding=0)  # 9-P5/32
-        self.b10 = Conv(
-            in_channels=256, out_channels=512, kernel_size=3, stride=1
-        )  # 10
+        self.b10 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=1)  # 10
         self.b11 = nn.ZeroPad2d(padding=(0, 1, 0, 1))  # 11
         self.b12 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0)  # 12
 
@@ -68,24 +66,14 @@ class TinyHead(nn.Module):
 
     def __init__(self):
         super().__init__()
-        self.h13 = Conv(
-            in_channels=512, out_channels=1024, kernel_size=3, stride=1
-        )  # 13
-        self.h14 = Conv(
-            in_channels=1024, out_channels=256, kernel_size=1, stride=1
-        )  # 14
-        self.h15 = Conv(
-            in_channels=256, out_channels=512, kernel_size=3, stride=1
-        )  # 15 (P5/32-large)
+        self.h13 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)  # 13
+        self.h14 = Conv(in_channels=1024, out_channels=256, kernel_size=1, stride=1)  # 14
+        self.h15 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=1)  # 15 (P5/32-large)
 
-        self.h16 = Conv(
-            in_channels=256, out_channels=128, kernel_size=1, stride=1
-        )  # 16
+        self.h16 = Conv(in_channels=256, out_channels=128, kernel_size=1, stride=1)  # 16
         self.h17 = nn.Upsample(None, scale_factor=2, mode="nearest")  # 17
         self.h18 = Concat(dimension=1)  # 18 cat backbone P4
-        self.h19 = Conv(
-            in_channels=384, out_channels=256, kernel_size=3, stride=1
-        )  # 19 (P4/16-medium)
+        self.h19 = Conv(in_channels=384, out_channels=256, kernel_size=3, stride=1)  # 19 (P4/16-medium)
 
     def forward(self, x: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
         b8, b12 = x
@@ -109,9 +97,7 @@ class YOLOv3Tiny(nn.Module):
 
         self.detect = Detect(anchors=anchors, nc=num_classes, ch=(256, 512))
 
-        self.detect.stride = torch.tensor(
-            [256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))]
-        )
+        self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))])
         self.detect.anchors /= self.detect.stride.view(-1, 1, 1)
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
@@ -142,9 +128,7 @@ class YOLOv3Tiny(nn.Module):
     def _initialize_biases(detect):
         for mi, s in zip(detect.m, detect.stride):  # from
             b = mi.bias.view(detect.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(
-                8 / (640 / s) ** 2
-            )  # obj (8 objects per 640 image)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (detect.nc - 0.999999))  # cls
             mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
@@ -157,8 +141,4 @@ if __name__ == "__main__":
     predictions, (p3, p4) = net(img)
 
     print(f"P3.size(): {p3.size()}, \nP4.size(): {p4.size()}")
-    print(
-        "Number of parameters: {:.2f}M".format(
-            sum(p.numel() for p in net.parameters() if p.requires_grad) / 1e6
-        )
-    )
+    print("Number of parameters: {:.2f}M".format(sum(p.numel() for p in net.parameters() if p.requires_grad) / 1e6))

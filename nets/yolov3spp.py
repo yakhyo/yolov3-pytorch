@@ -23,35 +23,23 @@ class Backbone(nn.Module):
 
         self.b0 = Conv(in_channels=3, out_channels=32, kernel_size=3, stride=1)  # 0
 
-        self.b1 = Conv(
-            in_channels=32, out_channels=64, kernel_size=3, stride=2
-        )  # 1-P1/2
+        self.b1 = Conv(in_channels=32, out_channels=64, kernel_size=3, stride=2)  # 1-P1/2
         self.b2 = self._make_layers(Bottleneck, channels=64, num_blocks=1)  # 2
 
-        self.b3 = Conv(
-            in_channels=64, out_channels=128, kernel_size=3, stride=2
-        )  # 3-P2/4
+        self.b3 = Conv(in_channels=64, out_channels=128, kernel_size=3, stride=2)  # 3-P2/4
         self.b4 = self._make_layers(Bottleneck, channels=128, num_blocks=2)  # 4
 
-        self.b5 = Conv(
-            in_channels=128, out_channels=256, kernel_size=3, stride=2
-        )  # 5-P3/8
+        self.b5 = Conv(in_channels=128, out_channels=256, kernel_size=3, stride=2)  # 5-P3/8
         self.b6 = self._make_layers(Bottleneck, channels=256, num_blocks=8)  # 6
 
-        self.b7 = Conv(
-            in_channels=256, out_channels=512, kernel_size=3, stride=2
-        )  # 7-P4/14
+        self.b7 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=2)  # 7-P4/14
         self.b8 = self._make_layers(Bottleneck, channels=512, num_blocks=8)  # 8
 
-        self.b9 = Conv(
-            in_channels=512, out_channels=1024, kernel_size=3, stride=2
-        )  # 9-P5/32
+        self.b9 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=2)  # 9-P5/32
         self.b10 = self._make_layers(Bottleneck, channels=1024, num_blocks=4)  # 10
 
     @staticmethod
-    def _make_layers(
-        block: Type[Bottleneck], channels: int, num_blocks: int = 1
-    ) -> nn.Sequential:
+    def _make_layers(block: Type[Bottleneck], channels: int, num_blocks: int = 1) -> nn.Sequential:
         layers = [block(channels, channels) for _ in range(num_blocks)]
         return nn.Sequential(*layers)
 
@@ -83,9 +71,7 @@ class HeadSPP(nn.Module):
         self.h12 = SPP(in_channels=1024, out_channels=512, k=(5, 9, 13))
         self.h13 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)
         self.h14 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
-        self.h15 = Conv(
-            in_channels=512, out_channels=1024, kernel_size=3, stride=1
-        )  # P5/32-large
+        self.h15 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)  # P5/32-large
 
         # input of h16 is h14
         self.h16 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
@@ -94,9 +80,7 @@ class HeadSPP(nn.Module):
         self.h19 = Bottleneck(in_channels=768, out_channels=512, shortcut=False)
         self.h20 = Bottleneck(in_channels=512, out_channels=512, shortcut=False)
         self.h21 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
-        self.h22 = Conv(
-            in_channels=256, out_channels=512, kernel_size=3, stride=1
-        )  # P4/16-medium
+        self.h22 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=1)  # P4/16-medium
 
         # inout of h23 is h21
         self.h23 = Conv(in_channels=256, out_channels=128, kernel_size=1, stride=1)
@@ -140,9 +124,7 @@ class YOLOv3SPP(nn.Module):
         self.head = HeadSPP()
         self.detect = Detect(anchors=anchors, nc=num_classes, ch=(256, 512, 1024))
 
-        self.detect.stride = torch.tensor(
-            [256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))]
-        )
+        self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))])
         self.detect.anchors /= self.detect.stride.view(-1, 1, 1)
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
@@ -173,9 +155,7 @@ class YOLOv3SPP(nn.Module):
     def _initialize_biases(detect):
         for mi, s in zip(detect.m, detect.stride):  # from
             b = mi.bias.view(detect.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(
-                8 / (640 / s) ** 2
-            )  # obj (8 objects per 640 image)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
             b.data[:, 5:] += math.log(0.6 / (detect.nc - 0.999999))  # cls
             mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
@@ -188,8 +168,4 @@ if __name__ == "__main__":
     predictions, (p3, p4, p5) = net(img)
 
     print(f"P3.size(): {p3.size()}, \nP4.size(): {p4.size()}, \nP5.size(): {p5.size()}")
-    print(
-        "Number of parameters: {:.2f}M".format(
-            sum(p.numel() for p in net.parameters() if p.requires_grad) / 1e6
-        )
-    )
+    print("Number of parameters: {:.2f}M".format(sum(p.numel() for p in net.parameters() if p.requires_grad) / 1e6))

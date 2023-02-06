@@ -69,7 +69,7 @@ class Colors:
 
     @staticmethod
     def hex2rgb(h):  # rgb order (PIL)
-        return tuple(int(h[1 + i : 1 + i + 2], 16) for i in (0, 2, 4))
+        return tuple(int(h[1 + i: 1 + i + 2], 16) for i in (0, 2, 4))
 
 
 colors = Colors()  # create instance for 'from utils.plots import colors'
@@ -97,32 +97,18 @@ class Annotator:
         check_font()  # download TTF if necessary
 
     #  Annotator for train/val mosaics and jpgs and detect/hub inference annotations
-    def __init__(
-        self,
-        im,
-        line_width=None,
-        font_size=None,
-        font="Arial.ttf",
-        pil=False,
-        example="abc",
-    ):
-        assert (
-            im.data.contiguous
-        ), "Image not contiguous. Apply np.ascontiguousarray(im) to Annotator() input images."
+    def __init__(self, im, line_width=None, font_size=None, font="Arial.ttf", pil=False, example="abc"):
+        assert (im.data.contiguous), "Image not contiguous. Apply np.ascontiguousarray(im) to Annotator() input images."
         self.pil = pil or not is_ascii(example)
         if self.pil:  # use PIL
             self.im = im if isinstance(im, Image.Image) else Image.fromarray(im)
             self.draw = ImageDraw.Draw(self.im)
-            self.font = check_font(
-                font, size=font_size or max(round(sum(self.im.size) / 2 * 0.035), 12)
-            )
+            self.font = check_font(font, size=font_size or max(round(sum(self.im.size) / 2 * 0.035), 12))
         else:  # use cv2
             self.im = im
         self.lw = line_width or max(round(sum(im.shape) / 2 * 0.003), 2)  # line width
 
-    def box_label(
-        self, box, label="", color=(128, 128, 128), txt_color=(255, 255, 255)
-    ):
+    def box_label(self, box, label="", color=(128, 128, 128), txt_color=(255, 255, 255)):
         # Add one xyxy box to image with label
         if self.pil or not is_ascii(label):
             self.draw.rectangle(box, width=self.lw, outline=color)  # box
@@ -139,17 +125,10 @@ class Annotator:
                     fill=color,
                 )
                 # self.draw.text((box[0], box[1]), label, fill=txt_color, font=self.font, anchor='ls')  # for PIL>8.0
-                self.draw.text(
-                    (box[0], box[1] - h if outside else box[1]),
-                    label,
-                    fill=txt_color,
-                    font=self.font,
-                )
+                self.draw.text((box[0], box[1] - h if outside else box[1]), label, fill=txt_color, font=self.font)
         else:  # cv2
             p1, p2 = (int(box[0]), int(box[1])), (int(box[2]), int(box[3]))
-            cv2.rectangle(
-                self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA
-            )
+            cv2.rectangle(self.im, p1, p2, color, thickness=self.lw, lineType=cv2.LINE_AA)
             if label:
                 tf = max(self.lw - 1, 1)  # font thickness
                 w, h = cv2.getTextSize(label, 0, fontScale=self.lw / 3, thickness=tf)[
@@ -158,16 +137,8 @@ class Annotator:
                 outside = p1[1] - h - 3 >= 0  # label fits outside box
                 p2 = p1[0] + w, p1[1] - h - 3 if outside else p1[1] + h + 3
                 cv2.rectangle(self.im, p1, p2, color, -1, cv2.LINE_AA)  # filled
-                cv2.putText(
-                    self.im,
-                    label,
-                    (p1[0], p1[1] - 2 if outside else p1[1] + h + 2),
-                    0,
-                    self.lw / 3,
-                    txt_color,
-                    thickness=tf,
-                    lineType=cv2.LINE_AA,
-                )
+                cv2.putText(self.im, label, (p1[0], p1[1] - 2 if outside else p1[1] + h + 2), 0, self.lw / 3, txt_color,
+                            thickness=tf, lineType=cv2.LINE_AA)
 
     def rectangle(self, xy, fill=None, outline=None, width=1):
         # Add rectangle to image (PIL-only)
@@ -193,13 +164,13 @@ def output_to_target(output):
 
 
 def plot_images(
-    images,
-    targets,
-    paths=None,
-    fname="images.jpg",
-    names=None,
-    max_size=1920,
-    max_subplots=16,
+        images,
+        targets,
+        paths=None,
+        fname="images.jpg",
+        names=None,
+        max_size=1920,
+        max_subplots=16,
 ):
     # Plot image grid with labels
     if isinstance(images, torch.Tensor):
@@ -210,7 +181,7 @@ def plot_images(
         images *= 255  # de-normalise (optional)
     bs, _, h, w = images.shape  # batch size, _, height, width
     bs = min(bs, max_subplots)  # limit plot images
-    ns = np.ceil(bs**0.5)  # number of subplots (square)
+    ns = np.ceil(bs ** 0.5)  # number of subplots (square)
 
     # Build Image
     mosaic = np.full((int(ns * h), int(ns * w), 3), 255, dtype=np.uint8)  # init
@@ -219,7 +190,7 @@ def plot_images(
             break
         x, y = int(w * (i // ns)), int(h * (i % ns))  # block origin
         im = im.transpose(1, 2, 0)
-        mosaic[y : y + h, x : x + w, :] = im
+        mosaic[y: y + h, x: x + w, :] = im
 
     # Resize (optional)
     scale = max_size / ns / max(h, w)
@@ -270,7 +241,7 @@ def plot_images(
 
 
 def plot_val_study(
-    file="", dir="", x=None
+        file="", dir="", x=None
 ):  # from utils.plots import *; plot_val_study()
     # Plot file=study.txt generated by val.py (or plot all study*.txt in dir)
     save_dir = Path(file).parent if file else Path(dir)

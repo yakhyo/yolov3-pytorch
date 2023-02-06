@@ -13,25 +13,21 @@ def auto_pad(kernel_size, padding=None) -> int:
         padding: new padding size
     """
     if padding is None:
-        padding = (
-            kernel_size // 2
-            if isinstance(kernel_size, int)
-            else [x // 2 for x in kernel_size]
-        )
+        padding = (kernel_size // 2 if isinstance(kernel_size, int) else [x // 2 for x in kernel_size])
     return padding
 
 
 class Conv(nn.Module):
     # Standard convolution block
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int = 1,
-        stride: int = 1,
-        padding=None,
-        groups: int = 1,
-        act=True,
+            self,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int = 1,
+            stride: int = 1,
+            padding=None,
+            groups: int = 1,
+            act=True,
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
@@ -44,11 +40,7 @@ class Conv(nn.Module):
             bias=False,
         )
         self.bn = nn.BatchNorm2d(num_features=out_channels)
-        self.act = (
-            nn.SiLU()
-            if act is True
-            else (act if isinstance(act, nn.Module) else nn.Identity())
-        )
+        self.act = (nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity()))
 
     def forward(self, x: Tensor) -> Tensor:
         return self.act(self.bn(self.conv(x)))
@@ -59,7 +51,14 @@ class Conv(nn.Module):
 
 class Bottleneck(nn.Module):
     # Standard Bottleneck
-    def __init__(self, in_channels, out_channels, shortcut=True, groups=1, exp=0.5):
+    def __init__(
+            self,
+            in_channels,
+            out_channels,
+            shortcut=True,
+            groups=1,
+            exp=0.5,
+    ) -> None:
         super().__init__()
         hidden_channels = int(out_channels * exp)  # hidden channels
         self.conv1 = Conv(
@@ -77,7 +76,7 @@ class Bottleneck(nn.Module):
         )
         self.add = shortcut and in_channels == out_channels
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return x + self.conv2(self.conv1(x)) if self.add else self.conv2(self.conv1(x))
 
 
@@ -129,12 +128,8 @@ class Detect(nn.Module):
         self.na = len(anchors[0]) // 2  # number of anchors
         self.grid = [torch.zeros(1)] * self.nl  # init grid
         self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
-        self.register_buffer(
-            "anchors", torch.tensor(anchors).float().view(self.nl, -1, 2)
-        )  # shape(nl,na,2)
-        self.m = nn.ModuleList(
-            nn.Conv2d(x, self.no * self.na, 1) for x in ch
-        )  # output conv
+        self.register_buffer("anchors", torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
+        self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
         self.inplace = True
 
     def forward(self, x):
@@ -142,21 +137,14 @@ class Detect(nn.Module):
         for i in range(self.nl):
             x[i] = self.m[i](x[i])  # conv
             bs, _, ny, nx = x[i].shape  # x(bs,255,20,20) to x(bs,3,20,20,85)
-            x[i] = (
-                x[i]
-                .view(bs, self.na, self.no, ny, nx)
-                .permute(0, 1, 3, 4, 2)
-                .contiguous()
-            )
+            x[i] = x[i].view(bs, self.na, self.no, ny, nx).permute(0, 1, 3, 4, 2).contiguous()
 
             if not self.training:  # inference
                 if self.onnx_dynamic or self.grid[i].shape[2:4] != x[i].shape[2:4]:
                     self.grid[i], self.anchor_grid[i] = self._make_grid(nx, ny, i)
 
                 y = x[i].sigmoid()
-                y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[
-                    i
-                ]  # xy
+                y[..., 0:2] = (y[..., 0:2] * 2 - 0.5 + self.grid[i]) * self.stride[i]  # xy
                 y[..., 2:4] = (y[..., 2:4] * 2) ** 2 * self.anchor_grid[i]  # wh
                 z.append(y.view(bs, -1, self.no))
 

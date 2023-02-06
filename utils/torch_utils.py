@@ -48,15 +48,11 @@ class EarlyStopping:
         self.possible_stop = False  # possible stop may occur next epoch
 
     def __call__(self, epoch, fitness):
-        if (
-            fitness >= self.best_fitness
-        ):  # >= 0 to allow for early zero-fitness stage of training
+        if (fitness >= self.best_fitness):  # >= 0 to allow for early zero-fitness stage of training
             self.best_epoch = epoch
             self.best_fitness = fitness
         delta = epoch - self.best_epoch  # epochs without improvement
-        self.possible_stop = delta >= (
-            self.patience - 1
-        )  # possible stop may occur next epoch
+        self.possible_stop = delta >= (self.patience - 1)  # possible stop may occur next epoch
         stop = delta >= self.patience  # stop training if patience exceeded
         if stop:
             LOGGER.info(
@@ -73,13 +69,9 @@ class ModelEMA:
 
     def __init__(self, model, decay=0.9999, updates=0):
         # Create EMA
-        self.model = deepcopy(
-            model.module if hasattr(model, "module") else model
-        ).eval()  # FP32 EMA
+        self.model = deepcopy(model.module if hasattr(model, "module") else model).eval()  # FP32 EMA
         self.updates = updates  # number of EMA updates
-        self.decay = lambda x: decay * (
-            1 - math.exp(-x / 2000)
-        )  # decay exponential ramp (to help early epochs)
+        self.decay = lambda x: decay * (1 - math.exp(-x / 2000))  # decay exponential ramp (to help early epochs)
         for p in self.model.parameters():
             p.requires_grad_(False)
 
@@ -89,11 +81,7 @@ class ModelEMA:
             self.updates += 1
             d = self.decay(self.updates)
 
-            msd = (
-                model.module.state_dict()
-                if hasattr(model, "module")
-                else model.state_dict()
-            )  # model state_dict
+            msd = (model.module.state_dict() if hasattr(model, "module") else model.state_dict())  # model state_dict
             for k, v in self.model.state_dict().items():
                 if v.dtype.is_floating_point:
                     v *= d
