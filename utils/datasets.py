@@ -16,9 +16,9 @@ from PIL import Image
 from torch.utils.data import DataLoader, Dataset, distributed
 from tqdm import tqdm
 
-from src.utils import LOGGER
-from src.utils.general import clip_coords
-from src.utils.torch_utils import torch_distributed_zero_first
+from utils import LOGGER
+from utils.general import clip_coords
+from utils.torch_utils import torch_distributed_zero_first
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]

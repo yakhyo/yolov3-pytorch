@@ -6,7 +6,7 @@ from copy import deepcopy
 import torch
 import torch.distributed as dist
 
-from src.utils import LOGGER
+from utils import LOGGER
 
 
 @contextmanager

@@ -14,7 +14,7 @@ from utils.general import colorstr, emojis
 
 PREFIX = colorstr("AutoAnchor: ")
 
-from src.utils import LOGGER
+from utils import LOGGER
 
 
 def check_anchor_order(m):

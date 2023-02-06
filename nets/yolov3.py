@@ -4,7 +4,7 @@ from typing import List, Type
 import torch
 from torch import Tensor, nn
 
-from src.nets.common import Bottleneck, Concat, Conv, Detect
+from nets.common import Bottleneck, Concat, Conv, Detect
 
 # Parameters
 nc = 80  # number of classes

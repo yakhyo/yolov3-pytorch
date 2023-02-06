@@ -23,9 +23,9 @@ if str(ROOT) not in sys.path:
     sys.path.append(str(ROOT))  # add ROOT to PATH
 ROOT = Path(os.path.relpath(ROOT, Path.cwd()))  # relative
 
-from src.utils import LOGGER
-from src.utils.datasets import create_dataloader
-from src.utils.general import (
+from utils import LOGGER
+from utils.datasets import create_dataloader
+from utils.general import (
     box_iou,
     check_img_size,
     coco80_to_coco91_class,
@@ -36,9 +36,9 @@ from src.utils.general import (
     xywh2xyxy,
     xyxy2xywh,
 )
-from src.utils.metrics import ConfusionMatrix, ap_per_class
-from src.utils.plots import output_to_target, plot_images
-from src.utils.torch_utils import time_sync
+from utils.metrics import ConfusionMatrix, ap_per_class
+from utils.plots import output_to_target, plot_images
+from utils.torch_utils import time_sync
 
 
 def save_one_txt(predn, save_conf, shape, file):

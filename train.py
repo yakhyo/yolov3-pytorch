@@ -14,7 +14,7 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import tool.val  # for end-of-epoch mAP
+import val  # for end-of-epoch mAP
 import torch
 import torch.distributed as dist
 import torch.nn as nn
@@ -24,13 +24,13 @@ from torch.nn.parallel import DistributedDataParallel as DDP
 from torch.optim import SGD, Adam, lr_scheduler
 from tqdm import tqdm
 
-from src.utils.autoanchor import check_anchors
-from src.utils.datasets import create_dataloader
-from src.utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
-from src.utils.loss import ComputeLoss
-from src.utils.metrics import fitness
-from src.utils.plots import plot_labels
-from src.utils.torch_utils import EarlyStopping, ModelEMA, torch_distributed_zero_first
+from utils.autoanchor import check_anchors
+from utils.datasets import create_dataloader
+from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
+from utils.loss import ComputeLoss
+from utils.metrics import fitness
+from utils.plots import plot_labels
+from utils.torch_utils import EarlyStopping, ModelEMA, torch_distributed_zero_first
 
 FILE = Path(__file__).resolve()
 
@@ -40,7 +40,7 @@ LOCAL_RANK = int(
 RANK = int(os.getenv("RANK", -1))
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))
 
-from src.utils import LOGGER
+from utils import LOGGER
 
 
 def one_cycle(hyp, epochs):

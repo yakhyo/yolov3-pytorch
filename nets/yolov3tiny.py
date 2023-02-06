@@ -4,7 +4,7 @@ from typing import Tuple
 import torch
 from torch import Tensor, nn
 
-from src.nets.common import Concat, Conv, Detect
+from nets.common import Concat, Conv, Detect
 
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple

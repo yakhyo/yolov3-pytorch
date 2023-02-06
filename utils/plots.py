@@ -16,7 +16,7 @@ import seaborn as sn
 import torch
 from PIL import Image, ImageDraw, ImageFont
 
-from src.utils.general import (
+from utils.general import (
     Timeout,
     is_ascii,
     try_except,
@@ -31,7 +31,7 @@ RANK = int(os.getenv("RANK", -1))
 matplotlib.rc("font", **{"size": 11})
 matplotlib.use("Agg")  # for writing to files only
 
-from src.utils import LOGGER
+from utils import LOGGER
 
 
 class Colors:

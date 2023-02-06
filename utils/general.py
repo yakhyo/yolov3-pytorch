@@ -20,7 +20,7 @@ import pandas as pd
 import torch
 import torchvision
 
-from src.utils.metrics import box_iou
+from utils.metrics import box_iou
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile="long")
