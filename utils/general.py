@@ -6,7 +6,6 @@ General utils
 import glob
 import math
 import os
-import platform
 import random
 import re
 import time
@@ -36,11 +35,6 @@ def init_seeds(seed=0):
     np.random.seed(seed)
     torch.manual_seed(seed)
     cudnn.benchmark, cudnn.deterministic = (False, True) if seed == 0 else (True, False)
-
-
-def emojis(str=""):
-    # Return platform-dependent emoji-safe version of string
-    return str.encode().decode("ascii", "ignore") if platform.system() == "Windows" else str
 
 
 def check_img_size(imgsz, s=32, floor=0):

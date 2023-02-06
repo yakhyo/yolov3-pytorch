@@ -1,4 +1,6 @@
+import math
 from typing import List
+from copy import deepcopy
 
 import torch
 from torch import Tensor, nn
@@ -162,3 +164,27 @@ class Detect(nn.Module):
             .float()
         )
         return grid, anchor_grid
+
+
+class ModelEMA:
+    """Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models"""
+
+    def __init__(self, model, decay=0.9999, updates=0) -> None:
+        # Create EMA
+        self.model = deepcopy(model.module if hasattr(model, "module") else model).eval()  # FP32 EMA
+        self.updates = updates  # number of EMA updates
+        self.decay = lambda x: decay * (1 - math.exp(-x / 2000))  # decay exponential ramp (to help early epochs)
+        for p in self.model.parameters():
+            p.requires_grad_(False)
+
+    def update(self, model) -> None:
+        # Update EMA parameters
+        with torch.no_grad():
+            self.updates += 1
+            d = self.decay(self.updates)
+
+            msd = (model.module.state_dict() if hasattr(model, "module") else model.state_dict())  # model state_dict
+            for k, v in self.model.state_dict().items():
+                if v.dtype.is_floating_point:
+                    v *= d
+                    v += (1 - d) * msd[k].detach()

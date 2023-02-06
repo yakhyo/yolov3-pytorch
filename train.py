@@ -29,7 +29,8 @@ from utils.datasets import create_dataloader
 from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
 from utils.loss import ComputeLoss
 from utils.metrics import fitness
-from utils.torch_utils import EarlyStopping, ModelEMA, torch_distributed_zero_first
+from utils.torch_utils import EarlyStopping, torch_distributed_zero_first
+from nets.common import ModelEMA
 from utils import LOGGER
 
 FILE = Path(__file__).resolve()
@@ -342,7 +343,6 @@ def train(hyp, opt, device):
 
         if RANK in [-1, 0]:
             # mAP
-            ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride"])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
                 results, maps, _ = val.run(
@@ -357,9 +357,7 @@ def train(hyp, opt, device):
                 )
 
             # Update best mAP
-            fi = fitness(
-                np.array(results).reshape(1, -1)
-            )  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
+            fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
             print("best_fitness: ", best_fitness)
             print("fi score: ", fi)
             if fi > best_fitness:
@@ -370,9 +368,7 @@ def train(hyp, opt, device):
                 checkpoint = {
                     "epoch": epoch,
                     "best_fitness": best_fitness,
-                    "model": deepcopy(
-                        model.module if hasattr(model, "module") else model
-                    ).half(),
+                    "model": deepcopy(model.module if hasattr(model, "module") else model).half(),
                     "ema": deepcopy(ema.model).half(),
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
@@ -406,9 +402,7 @@ def train(hyp, opt, device):
                         batch_size=batch_size // WORLD_SIZE * 2,
                         imgsz=image_size,
                         model=attempt_load(f, device).half(),
-                        iou_thres=0.65
-                        if is_coco
-                        else 0.60,  # best pycocotools results at 0.65
+                        iou_thres=0.65 if is_coco else 0.60,  # best pycocotools results at 0.65
                         dataloader=val_loader,
                         save_dir=save_dir,
                         save_json=is_coco,
