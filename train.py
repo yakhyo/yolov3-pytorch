@@ -232,8 +232,6 @@ def train(hyp, opt, device):
         )
 
         if not resume:
-            labels = np.concatenate(dataset.labels, 0)
-
             # Anchors
             if not opt.noautoanchor:
                 check_anchors(dataset, model=model, thr=hyp["anchor_t"], imgsz=image_size)
@@ -343,6 +341,7 @@ def train(hyp, opt, device):
 
         if RANK in [-1, 0]:
             # mAP
+            ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
                 results, maps, _ = val.run(
@@ -438,9 +437,7 @@ def parse_opt(known=False):
     parser.add_argument("--nosave", action="store_true", help="only save final checkpoint")
     parser.add_argument("--noval", action="store_true", help="only validate final epoch")
     parser.add_argument("--noautoanchor", action="store_true", help="disable autoanchor check")
-    parser.add_argument("--bucket", type=str, default="", help="gsutil bucket")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help='--cache images in "ram" (default) or "disk"')
-    parser.add_argument("--image-weights", action="store_true", help="use weighted image selection for training")
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
     parser.add_argument("--adam", action="store_true", help="use torch.optim.Adam() optimizer")
     parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")

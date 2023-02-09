@@ -166,6 +166,15 @@ class Detect(nn.Module):
         return grid, anchor_grid
 
 
+def copy_attr(a, b, include=(), exclude=()):
+    # Copy attributes from b to a, options to only include [...] and to exclude [...]
+    for k, v in b.__dict__.items():
+        if (len(include) and k not in include) or k.startswith('_') or k in exclude:
+            continue
+        else:
+            setattr(a, k, v)
+
+
 class ModelEMA:
     """Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models"""
 
@@ -188,3 +197,7 @@ class ModelEMA:
                 if v.dtype.is_floating_point:
                     v *= d
                     v += (1 - d) * msd[k].detach()
+
+    def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
+        # Update EMA attributes
+        copy_attr(self.model, model, include, exclude)
