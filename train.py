@@ -86,7 +86,6 @@ def train(hyp, opt, device):
         yaml.safe_dump(vars(opt), f, sort_keys=False)
 
     # Config
-    plots = True  # create plots
     cuda = device.type != "cpu"
     init_seeds(1 + RANK)
     with torch_distributed_zero_first(LOCAL_RANK):
@@ -250,7 +249,7 @@ def train(hyp, opt, device):
 
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
-    model.names = names
+    model.names = names # attach class names to model
 
     # Start training
     t0 = time.time()
@@ -388,9 +387,7 @@ def train(hyp, opt, device):
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in [-1, 0]:
-        LOGGER.info(
-            f"\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours."
-        )
+        LOGGER.info(f"\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.")
         for f in last, best:
             if os.path.exists(f):
                 strip_optimizer(f)  # strip optimizers
@@ -465,8 +462,8 @@ def main(opt):
     # DDP mode
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if LOCAL_RANK != -1:
-        assert (torch.cuda.device_count() > LOCAL_RANK), "insufficient CUDA devices for DDP command"
-        assert (opt.batch_size % WORLD_SIZE == 0), "--batch-size must be multiple of CUDA device count"
+        assert torch.cuda.device_count() > LOCAL_RANK, "insufficient CUDA devices for DDP command"
+        assert opt.batch_size % WORLD_SIZE == 0, "--batch-size must be multiple of CUDA device count"
         torch.cuda.set_device(LOCAL_RANK)
         device = torch.device("cuda", LOCAL_RANK)
         dist.init_process_group(backend="nccl" if dist.is_nccl_available() else "gloo")
