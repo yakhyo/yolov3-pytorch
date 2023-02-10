@@ -335,7 +335,6 @@ def train(hyp, opt, device):
             # end batch ------------------------------------------------------------------------------------------------
 
         # Scheduler
-        lr = [x["lr"] for x in optimizer.param_groups]  # for loggers
         scheduler.step()
 
         if RANK in [-1, 0]:
