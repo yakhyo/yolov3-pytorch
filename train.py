@@ -33,6 +33,8 @@ from utils.torch_utils import EarlyStopping, torch_distributed_zero_first
 from nets.common import ModelEMA
 from utils import LOGGER
 
+from nets import YOLOv3SPP, YOLOv3Tiny
+
 FILE = Path(__file__).resolve()
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
@@ -110,19 +112,15 @@ def train(hyp, opt, device):
     is_coco = isinstance(val_path, str) and val_path.endswith("coco/val2017.txt")  # COCO dataset
 
     # Model
+
+    model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
+
     pretrained = weights.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(weights, map_location=device)
-        from nets import YOLOv3SPP, YOLOv3Tiny
-
-        model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
         state_dict = checkpoint["model"].float().state_dict()
         model.load_state_dict(state_dict, strict=False)
         LOGGER.info(f"Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}")  # report
-    else:
-        from nets import YOLOv3SPP, YOLOv3Tiny
-
-        model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
 
     # Image size
     grid_size = max(int(model.detect.stride.max()), 32)  # grid size (max stride)
@@ -249,7 +247,7 @@ def train(hyp, opt, device):
 
     model.nc = nc  # attach number of classes to model
     model.hyp = hyp  # attach hyperparameters to model
-    model.names = names # attach class names to model
+    model.names = names  # attach class names to model
 
     # Start training
     t0 = time.time()
