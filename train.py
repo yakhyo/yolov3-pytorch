@@ -28,12 +28,12 @@ from torch.optim import Adam, lr_scheduler, SGD
 from tqdm import tqdm
 from utils import LOGGER
 
-from utils.autoanchor import check_anchors
+from utils.misc import check_anchors
 from utils.datasets import create_dataloader
 from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
 from utils.loss import ComputeLoss
 from utils.metrics import fitness
-from utils.torch_utils import EarlyStopping, torch_distributed_zero_first
+from utils.misc import EarlyStopping, torch_distributed_zero_first
 
 FILE = Path(__file__).resolve()
 

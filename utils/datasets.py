@@ -20,7 +20,7 @@ from tqdm import tqdm
 
 from utils import LOGGER
 from utils.general import clip_coords
-from utils.torch_utils import torch_distributed_zero_first
+from utils.misc import torch_distributed_zero_first
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]

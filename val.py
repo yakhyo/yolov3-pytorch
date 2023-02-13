@@ -36,7 +36,7 @@ from utils.general import (
     xyxy2xywh,
 )
 from utils.metrics import ap_per_class, ConfusionMatrix
-from utils.torch_utils import time_sync
+from utils.misc import time_sync
 
 
 def save_one_txt(predn, save_conf, shape, file):

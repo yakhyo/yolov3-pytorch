@@ -4,7 +4,31 @@ from contextlib import contextmanager
 import torch
 import torch.distributed as dist
 
+import numpy as np
+from utils.general import colorstr
 from utils import LOGGER
+
+PREFIX = colorstr("AutoAnchor: ")
+
+
+def check_anchors(dataset, model, thr=4.0, imgsz=640):
+    # Check anchor fit to data, recompute if necessary
+    m = model.module.model[-1] if hasattr(model, "module") else model.detect  # Detect()
+    shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
+    scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
+    wh = torch.tensor(np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])).float()  # wh
+
+    def metric(k):  # compute metric
+        r = wh[:, None] / k[None]
+        x = torch.min(r, 1 / r).min(2)[0]  # ratio metric
+        best = x.max(1)[0]  # best_x
+        aat = (x > 1 / thr).float().sum(1).mean()  # anchors above threshold
+        bpr = (best > 1 / thr).float().mean()  # best possible recall
+        return bpr, aat
+
+    anchors = m.anchors.clone() * m.stride.to(m.anchors.device).view(-1, 1, 1)  # current anchors
+    bpr, aat = metric(anchors.cpu().view(-1, 2))
+    LOGGER.info(f"\n{PREFIX}{aat:.2f} anchors/target, {bpr:.3f} Best Possible Recall (BPR). ")
 
 
 @contextmanager
