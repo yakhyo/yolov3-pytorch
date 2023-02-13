@@ -2,21 +2,21 @@
 """
 Dataloaders and dataset utils
 """
-import os
 import glob
+import hashlib
 
 import math
+import os
 import random
-import hashlib
-import numpy as np
-from tqdm import tqdm
 from pathlib import Path
 
 import cv2
-from PIL import Image
+import numpy as np
 
 import torch
+from PIL import Image
 from torch.utils.data import DataLoader, Dataset, distributed
+from tqdm import tqdm
 
 from utils import LOGGER
 from utils.general import clip_coords
@@ -37,16 +37,16 @@ def get_hash(paths):
 
 
 def create_dataloader(
-        path,
-        image_size,
-        batch_size,
-        stride,
-        hyp=None,
-        augment=False,
-        rank=-1,
-        workers=16,
-        prefix="",
-        shuffle=False,
+    path,
+    image_size,
+    batch_size,
+    stride,
+    hyp=None,
+    augment=False,
+    rank=-1,
+    workers=16,
+    prefix="",
+    shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
@@ -59,12 +59,8 @@ def create_dataloader(
         )
 
     batch_size = min(batch_size, len(dataset))
-    num_workers = min(
-        [os.cpu_count() // WORLD_SIZE, batch_size if batch_size > 1 else 0, workers]
-    )  # number of workers
-    sampler = (
-        None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
-    )
+    num_workers = min([os.cpu_count() // WORLD_SIZE, batch_size if batch_size > 1 else 0, workers])  # number of workers
+    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
     return (
         DataLoader(
             dataset,
@@ -90,9 +86,7 @@ class LoadImagesAndLabels(Dataset):
     #  train_loader/val_loader, loads images and labels for training and validation
     cache_version = 0.6  # dataset labels *.cache version
 
-    def __init__(
-            self, path, image_size=640, augment=False, hyp=None, stride=32, prefix=""
-    ):
+    def __init__(self, path, image_size=640, augment=False, hyp=None, stride=32, prefix=""):
         self.input_size = image_size
         self.hyp = hyp
         self.mosaic = self.augment = augment
@@ -117,18 +111,11 @@ class LoadImagesAndLabels(Dataset):
                     with open(p) as t:
                         t = t.read().strip().splitlines()
                         parent = str(p.parent) + os.sep
-                        f += [
-                            x.replace("./", parent) if x.startswith("./") else x
-                            for x in t
-                        ]  # local to global path
+                        f += [x.replace("./", parent) if x.startswith("./") else x for x in t]  # local to global path
                         # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
                 else:
                     raise Exception(f"{prefix}{p} does not exist")
-            self.image_files = sorted(
-                x.replace("/", os.sep)
-                for x in f
-                if x.split(".")[-1].lower() in IMG_FORMATS
-            )
+            self.image_files = sorted(x.replace("/", os.sep) for x in f if x.split(".")[-1].lower() in IMG_FORMATS)
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
             assert self.image_files, f"{prefix}No images found"
         except Exception as e:
@@ -137,7 +124,10 @@ class LoadImagesAndLabels(Dataset):
         self.label_files = image2label(self.image_files)  # labels
         cache_path = Path(self.label_files[0]).parent.with_suffix(".cache")
         try:
-            cache, exists = (np.load(str(cache_path), allow_pickle=True).item(), True,)  # load dict
+            cache, exists = (
+                np.load(str(cache_path), allow_pickle=True).item(),
+                True,
+            )  # load dict
             assert cache["version"] == self.cache_version  # same version
             assert cache["hash"] == get_hash(self.label_files + self.image_files)  # same hash
         except (FileNotFoundError, AssertionError):
@@ -147,7 +137,7 @@ class LoadImagesAndLabels(Dataset):
         nf, nm, ne, nc, n = cache.pop("results")  # found, missing, empty, corrupted, total
         if exists:
             LOGGER.info(f"{prefix}Scanning '{cache_path}' {nf} found, {nm} missing, {ne} empty, {nc} corrupted")
-        assert (nf > 0 or not augment), f"{prefix}No labels in {cache_path}. Can not train without labels."
+        assert nf > 0 or not augment, f"{prefix}No labels in {cache_path}. Can not train without labels."
 
         # Read cache
         [cache.pop(k) for k in ("hash", "version")]  # remove items
@@ -245,7 +235,7 @@ class LoadImagesAndLabels(Dataset):
                 image.verify()  # PIL verify
                 shape = image.size  # image size
                 assert (shape[0] > 9) & (shape[1] > 9), f"image size {shape} <10 pixels"
-                assert (image.format.lower() in IMG_FORMATS), f"invalid image format {image.format}"
+                assert image.format.lower() in IMG_FORMATS, f"invalid image format {image.format}"
                 # verify labels
                 if os.path.isfile(label_file):
                     nf += 1  # label found
@@ -254,7 +244,7 @@ class LoadImagesAndLabels(Dataset):
                         label = np.array(label, dtype=np.float32)
                     nl = len(label)
                     if nl:
-                        assert (label.shape[1] == 5), f"labels require 5 columns, {label.shape[1]} columns detected"
+                        assert label.shape[1] == 5, f"labels require 5 columns, {label.shape[1]} columns detected"
                         assert (label >= 0).all(), f"negative label values {label[label < 0]}"
                         assert (label[:, 1:] <= 1).all(), f"non-normalized {label[:, 1:][label[:, 1:] > 1]}"
                         _, i = np.unique(label, axis=0, return_index=True)
@@ -306,7 +296,7 @@ class LoadImagesAndLabels(Dataset):
         h, w = image.shape[:2]  # orig hw
         r = self.input_size / max(h, w)  # ratio
         if r != 1:
-            resample = (cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR)
+            resample = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
             image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=resample)
         return image, (h, w), image.shape[:2]  # image, hw_original, hw_resized
 
@@ -395,14 +385,14 @@ class LoadImagesAndLabels(Dataset):
 
 
 def random_perspective(
-        image,
-        targets=(),
-        degrees=10,
-        translate=0.1,
-        scale=0.1,
-        shear=10,
-        perspective=0.0,
-        border=(0, 0),
+    image,
+    targets=(),
+    degrees=10,
+    translate=0.1,
+    scale=0.1,
+    shear=10,
+    perspective=0.0,
+    border=(0, 0),
 ):
     # targets = [cls, xyxy]
     height = image.shape[0] + border[0] * 2  # shape(h,w,c)
@@ -431,12 +421,8 @@ def random_perspective(
 
     # Translation
     T = np.eye(3)
-    T[0, 2] = (
-            random.uniform(0.5 - translate, 0.5 + translate) * width
-    )  # x translation (pixels)
-    T[1, 2] = (
-            random.uniform(0.5 - translate, 0.5 + translate) * height
-    )  # y translation (pixels)
+    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
+    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
 
     # Combined rotation matrix
     M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
@@ -471,9 +457,7 @@ def random_perspective(
     return image, targets
 
 
-def box_candidates(
-        box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16
-):  # box1(4,n), box2(4,n)
+def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  # box1(4,n), box2(4,n)
     w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
     w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
     ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio

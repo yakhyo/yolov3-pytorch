@@ -2,17 +2,14 @@ import math
 from typing import Tuple
 
 import torch
-from torch import Tensor, nn
 
 from nets.common import Concat, Conv, Detect
+from torch import nn, Tensor
 
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple
 width_multiple = 1.0  # layer channel multiple
-anchors = [
-    [10, 14, 23, 27, 37, 58], # P4/16 
-    [81, 82, 135, 169, 344, 319] # P5/32
-]   
+anchors = [[10, 14, 23, 27, 37, 58], [81, 82, 135, 169, 344, 319]]  # P4/16  # P5/32
 
 
 class TinyBackbone(nn.Module):
@@ -124,7 +121,7 @@ class YOLOv3Tiny(nn.Module):
         da = a[-1] - a[0]  # delta a
         ds = detect.stride[-1] - detect.stride[0]  # delta s
         if da.sign() != ds.sign():  # same order
-            print(f"AutoAnchor: Reversing anchor order")
+            print("AutoAnchor: Reversing anchor order")
             detect.anchors[:] = detect.anchors.flip(0)
 
     @staticmethod

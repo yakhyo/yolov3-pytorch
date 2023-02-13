@@ -35,7 +35,7 @@ from utils.general import (
     xywh2xyxy,
     xyxy2xywh,
 )
-from utils.metrics import ConfusionMatrix, ap_per_class
+from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.torch_utils import time_sync
 
 
@@ -43,7 +43,7 @@ def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
     gn = torch.tensor(shape)[[1, 0, 1, 0]]  # normalization gain whwh
     for *xyxy, conf, cls in predn.tolist():
-        xywh = ((xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist())  # normalized xywh
+        xywh = (xyxy2xywh(torch.tensor(xyxy).view(1, 4)) / gn).view(-1).tolist()  # normalized xywh
         line = (cls, *xywh, conf) if save_conf else (cls, *xywh)  # label format
         with open(file, "a") as f:
             f.write(("%g " * len(line)).rstrip() % line + "\n")
@@ -69,20 +69,17 @@ def process_batch(detections, labels, iouv):
     """
     Return correct predictions matrix. Both sets of boxes are in (x1, y1, x2, y2) format.
     Arguments:
-        detections (Array[N, 6]), x1, y1, x2, y2, conf, class
-        labels (Array[M, 5]), class, x1, y1, x2, y2
+        detections: (Array[N, 6]), x1, y1, x2, y2, conf, class
+        labels: (Array[M, 5]), class, x1, y1, x2, y2
+        iouv: iou vector for mAP@0.5:0.95
     Returns:
         correct (Array[N, 10]), for 10 IoU levels
     """
-    correct = torch.zeros(
-        detections.shape[0], iouv.shape[0], dtype=torch.bool, device=iouv.device
-    )
+    correct = torch.zeros(detections.shape[0], iouv.shape[0], dtype=torch.bool, device=iouv.device)
     iou = box_iou(labels[:, 1:], detections[:, :4])
     x = torch.where((iou >= iouv[0]) & (labels[:, 0:1] == detections[:, 5]))  # IoU above threshold and classes match
     if x[0].shape[0]:
-        matches = (
-            torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
-        )  # [label, detection, iou]
+        matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()  # [label, detection, iou]
         if x[0].shape[0] > 1:
             matches = matches[matches[:, 2].argsort()[::-1]]
             matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
@@ -95,31 +92,31 @@ def process_batch(detections, labels, iouv):
 
 @torch.no_grad()
 def run(
-        data,
-        weights=None,  # model.pt path(s)
-        batch_size=32,  # batch size
-        imgsz=640,  # inference size (pixels)
-        conf_thres=0.001,  # confidence threshold
-        iou_thres=0.6,  # NMS IoU threshold
-        task="val",  # train, val, test, speed or study
-        device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        augment=False,  # augmented inference
-        verbose=False,  # verbose output
-        save_txt=False,  # save results to *.txt
-        save_hybrid=False,  # save label+prediction hybrid results to *.txt
-        save_conf=False,  # save confidences in --save-txt labels
-        save_json=False,  # save a COCO-JSON results file
-        project=ROOT / "runs/val",  # save to project/name
-        name="exp",  # save to project/name
-        exist_ok=False,  # existing project/name ok, do not increment
-        half=True,  # use FP16 half-precision inference
-        dnn=False,  # use OpenCV DNN for ONNX inference
-        model=None,
-        dataloader=None,
-        save_dir=Path(""),
-        plots=True,
-        # callbacks=Callbacks(),
-        compute_loss=None,
+    data,
+    weights=None,  # model.pt path(s)
+    batch_size=32,  # batch size
+    imgsz=640,  # inference size (pixels)
+    conf_thres=0.001,  # confidence threshold
+    iou_thres=0.6,  # NMS IoU threshold
+    task="val",  # train, val, test, speed or study
+    device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+    augment=False,  # augmented inference
+    verbose=False,  # verbose output
+    save_txt=False,  # save results to *.txt
+    save_hybrid=False,  # save label+prediction hybrid results to *.txt
+    save_conf=False,  # save confidences in --save-txt labels
+    save_json=False,  # save a COCO-JSON results file
+    project=ROOT / "runs/val",  # save to project/name
+    name="exp",  # save to project/name
+    exist_ok=False,  # existing project/name ok, do not increment
+    half=True,  # use FP16 half-precision inference
+    dnn=False,  # use OpenCV DNN for ONNX inference
+    model=None,
+    dataloader=None,
+    save_dir=Path(""),
+    plots=True,
+    # callbacks=Callbacks(),
+    compute_loss=None,
 ):
     # Initialize/load model and set device
     training = model is not None
@@ -176,7 +173,7 @@ def run(
     if not training:
         if device.type != "cpu":
             model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # warmup
-        task = (task if task in ("train", "val", "test") else "val")  # path to train/val/test images
+        task = task if task in ("train", "val", "test") else "val"  # path to train/val/test images
         dataloader, _ = create_dataloader(data[task], imgsz, batch_size, stride, prefix=colorstr(f"{task}: "))
 
     seen = 0
@@ -205,9 +202,7 @@ def run(
         dt[0] += t2 - t1
 
         # Inference
-        out, train_out = (
-            model(images) if training else model(images)
-        )  # inference, loss outputs
+        out, train_out = model(images) if training else model(images)  # inference, loss outputs
 
         # out, train_out = model(im) if training else model(im, augment=augment, val=True)  # inference, loss outputs
         dt[1] += time_sync() - t2
@@ -290,7 +285,7 @@ def run(
 
     # Save JSON
     if save_json and len(jdict):
-        w = (Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else "")  # weights
+        w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ""  # weights
         anno_json = str(Path(data.get("path", "../coco")) / "annotations/instances_val2017.json")  # annotations json
         pred_json = str(f"./weights/{w}_predictions.json")  # predictions json
         LOGGER.info(f"\nEvaluating pycocotools mAP... saving {pred_json}...")
@@ -318,7 +313,7 @@ def run(
     # Return results
     model.float()  # for training
     if not training:
-        s = (f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else "")
+        s = f"\n{len(list(save_dir.glob('labels/*.txt')))} labels saved to {save_dir / 'labels'}" if save_txt else ""
         LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}{s}")
     maps = np.zeros(nc) + map
     for i, c in enumerate(ap_class):

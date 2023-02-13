@@ -1,7 +1,5 @@
-import math
 import time
 from contextlib import contextmanager
-from copy import deepcopy
 
 import torch
 import torch.distributed as dist
@@ -51,5 +49,3 @@ class EarlyStopping:
                 f"i.e. `python train.py --patience 300` or use `--patience 0` to disable EarlyStopping."
             )
         return stop
-
-

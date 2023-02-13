@@ -2,9 +2,9 @@ import math
 from typing import List, Type
 
 import torch
-from torch import Tensor, nn
 
-from nets.common import SPP, Bottleneck, Concat, Conv, Detect
+from nets.common import Bottleneck, Concat, Conv, Detect, SPP
+from torch import nn, Tensor
 
 # Parameters
 nc = 80  # number of classes
@@ -148,7 +148,7 @@ class YOLOv3SPP(nn.Module):
         da = a[-1] - a[0]  # delta a
         ds = detect.stride[-1] - detect.stride[0]  # delta s
         if da.sign() != ds.sign():  # same order
-            print(f"AutoAnchor: Reversing anchor order")
+            print("AutoAnchor: Reversing anchor order")
             detect.anchors[:] = detect.anchors.flip(0)
 
     @staticmethod

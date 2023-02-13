@@ -132,7 +132,7 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
     LOGGER.info(f"{PREFIX}Running kmeans for {n} anchors on {len(wh)} points...")
     s = wh.std(0)  # sigmas for whitening
     k, dist = kmeans(wh / s, n, iter=30)  # points, mean distance
-    assert (len(k) == n), f"{PREFIX}ERROR: scipy.cluster.vq.kmeans requested {n} points but returned only {len(k)}"
+    assert len(k) == n, f"{PREFIX}ERROR: scipy.cluster.vq.kmeans requested {n} points but returned only {len(k)}"
     k *= s
     wh = torch.tensor(wh, dtype=torch.float32)  # filtered
     wh0 = torch.tensor(wh0, dtype=torch.float32)  # unfiltered
@@ -140,7 +140,12 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
 
     # Evolve
     npr = np.random
-    f, sh, mp, s = (anchor_fitness(k), k.shape, 0.9, 0.1,)  # fitness, generations, mutation prob, sigma
+    f, sh, mp, s = (
+        anchor_fitness(k),
+        k.shape,
+        0.9,
+        0.1,
+    )  # fitness, generations, mutation prob, sigma
     pbar = tqdm(range(gen), desc=f"{PREFIX}Evolving anchors with Genetic Algorithm:")  # progress bar
     for _ in pbar:
         v = np.ones(sh)
@@ -150,7 +155,7 @@ def kmean_anchors(dataset="./data/coco128.yaml", n=9, img_size=640, thr=4.0, gen
         fg = anchor_fitness(kg)
         if fg > f:
             f, k = fg, kg.copy()
-            pbar.desc = (f"{PREFIX}Evolving anchors with Genetic Algorithm: fitness = {f:.4f}")
+            pbar.desc = f"{PREFIX}Evolving anchors with Genetic Algorithm: fitness = {f:.4f}"
             if verbose:
                 print_results(k, verbose)
 

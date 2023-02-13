@@ -14,15 +14,19 @@ from datetime import datetime
 from pathlib import Path
 
 import numpy as np
-import val  # for end-of-epoch mAP
 import torch
 import torch.distributed as dist
 import torch.nn as nn
+import val  # for end-of-epoch mAP
 import yaml
+
+from nets import YOLOv3SPP, YOLOv3Tiny
+from nets.common import ModelEMA
 from torch.cuda import amp
 from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.optim import SGD, Adam, lr_scheduler
+from torch.optim import Adam, lr_scheduler, SGD
 from tqdm import tqdm
+from utils import LOGGER
 
 from utils.autoanchor import check_anchors
 from utils.datasets import create_dataloader
@@ -30,10 +34,6 @@ from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
 from utils.loss import ComputeLoss
 from utils.metrics import fitness
 from utils.torch_utils import EarlyStopping, torch_distributed_zero_first
-from nets.common import ModelEMA
-from utils import LOGGER
-
-from nets import YOLOv3SPP, YOLOv3Tiny
 
 FILE = Path(__file__).resolve()
 
@@ -58,13 +58,12 @@ def linear_lr(hyp, epochs):
 
 def train(hyp, opt, device):
     # path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, data, cfg, resume, noval, nosave, workers = (
+    save_dir, epochs, batch_size, weights, data, resume, noval, nosave, workers = (
         opt.save_dir,
         opt.epochs,
         opt.batch_size,
         opt.weights,
         opt.data,
-        opt.cfg,
         opt.resume,
         opt.noval,
         opt.nosave,
@@ -108,13 +107,11 @@ def train(hyp, opt, device):
     nc = int(data_dict["nc"])  # number of classes
     names = data_dict["names"]  # class names
 
-    assert (len(names) == nc), f"{len(names)} names found for nc={nc} dataset in {data}"  # check
+    assert len(names) == nc, f"{len(names)} names found for nc={nc} dataset in {data}"  # check
     is_coco = isinstance(val_path, str) and val_path.endswith("coco/val2017.txt")  # COCO dataset
 
     # Model
-
     model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
-
     pretrained = weights.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(weights, map_location=device)
@@ -178,7 +175,7 @@ def train(hyp, opt, device):
         # Epochs
         start_epoch = checkpoint["epoch"] + 1
         if resume:
-            assert (start_epoch > 0), f"{weights} training to {epochs} epochs is finished, nothing to resume."
+            assert start_epoch > 0, f"{weights} training to {epochs} epochs is finished, nothing to resume."
         if epochs < start_epoch:
             LOGGER.info(
                 f"{weights} has been trained for {checkpoint['epoch']} epochs. Fine-tuning for {epochs} more epochs."
@@ -188,9 +185,7 @@ def train(hyp, opt, device):
 
     # DP mode
     if cuda and RANK == -1 and torch.cuda.device_count() > 1:
-        LOGGER.warning(
-            "WARNING: DP not recommended, use torch.distributed.run for best DDP Multi-GPU results"
-        )
+        LOGGER.warning("WARNING: DP not recommended, use torch.distributed.run for best DDP Multi-GPU results")
         model = torch.nn.DataParallel(model)
 
     # SyncBatchNorm
@@ -213,7 +208,7 @@ def train(hyp, opt, device):
     )
     mlc = int(np.concatenate(dataset.labels, 0)[:, 0].max())  # max label class
     nb = len(train_loader)  # number of batches
-    assert (mlc < nc), f"Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}"
+    assert mlc < nc, f"Label class {mlc} exceeds nc={nc} in {data}. Possible class labels are 0-{nc - 1}"
 
     # Process 0
     if RANK in [-1, 0]:
@@ -240,7 +235,7 @@ def train(hyp, opt, device):
         model = DDP(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK)
 
     # Model parameters
-    nl = (model.module.detect.nl if hasattr(model, "module") else model.detect.nl)  # number of detection layers
+    nl = model.module.detect.nl if hasattr(model, "module") else model.detect.nl  # number of detection layers
     hyp["box"] *= 3 / nl  # scale to layers
     hyp["cls"] *= nc / 80 * 3 / nl  # scale to classes and layers
     hyp["obj"] *= (image_size / 640) ** 2 * 3 / nl  # scale to image size and layers
@@ -274,38 +269,38 @@ def train(hyp, opt, device):
         if RANK != -1:
             train_loader.sampler.set_epoch(epoch)
         pbar = enumerate(train_loader)
-        LOGGER.info(
-            ("\n" + "%10s" * 7)
-            % ("Epoch", "gpu_mem", "box", "obj", "cls", "labels", "img_size")
-        )
+        LOGGER.info(("\n" + "%10s" * 7) % ("Epoch", "gpu_mem", "box", "obj", "cls", "labels", "img_size"))
         if RANK in [-1, 0]:
-            pbar = tqdm(pbar, total=nb, dynamic_ncols=True,
-                        bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}", )  # progress bar
+            pbar = tqdm(
+                pbar,
+                total=nb,
+                dynamic_ncols=True,
+                bar_format="{l_bar}{bar:10}{r_bar}{bar:-10b}",
+            )  # progress bar
         optimizer.zero_grad()
         # batch -------------------------------------------------------------
-        for i, (imgs, targets, paths, _,) in pbar:
+        for i, (
+            imgs,
+            targets,
+            paths,
+            _,
+        ) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
-            imgs = (imgs.to(device, non_blocking=True).float() / 255)  # uint8 to float32, 0-255 to 0.0-1.0
+            imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
             # Warmup
             if ni <= num_warmup_iters:
                 xi = [0, num_warmup_iters]  # x interp
                 accumulate = max(1, np.interp(ni, xi, [1, nbs / batch_size]).round())
                 for j, x in enumerate(optimizer.param_groups):
-                    x["lr"] = np.interp(
-                        ni, xi, [hyp["warmup_bias_lr"] if j == 2 else 0.0, x["initial_lr"] * lf(epoch)]
-                    )
+                    x["lr"] = np.interp(ni, xi, [hyp["warmup_bias_lr"] if j == 2 else 0.0, x["initial_lr"] * lf(epoch)])
                     if "momentum" in x:
-                        x["momentum"] = np.interp(
-                            ni, xi, [hyp["warmup_momentum"], hyp["momentum"]]
-                        )
+                        x["momentum"] = np.interp(ni, xi, [hyp["warmup_momentum"], hyp["momentum"]])
 
             # Forward
             with amp.autocast(enabled=cuda):
                 pred = model(imgs)  # forward
-                loss, loss_items = compute_loss(
-                    pred, targets.to(device)
-                )  # loss scaled by batch_size
+                loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                 if RANK != -1:
                     loss *= WORLD_SIZE  # gradient averaged between devices in DDP mode
 
@@ -326,9 +321,8 @@ def train(hyp, opt, device):
                 mean_loss = (mean_loss * i + loss_items) / (i + 1)  # update mean losses
                 mem = f"{torch.cuda.memory_reserved() / 1E9 if torch.cuda.is_available() else 0:.3g}G"  # (GB)
                 pbar.set_description(
-                    ("%10s" * 2 + "%10.4g" * 5) % (
-                        f"{epoch}/{epochs - 1}", mem, *mean_loss, targets.shape[0], imgs.shape[-1]
-                    )
+                    ("%10s" * 2 + "%10.4g" * 5)
+                    % (f"{epoch}/{epochs - 1}", mem, *mean_loss, targets.shape[0], imgs.shape[-1])
                 )
             # end batch ------------------------------------------------------------------------------------------------
 
@@ -337,7 +331,7 @@ def train(hyp, opt, device):
 
         if RANK in [-1, 0]:
             # mAP
-            ema.update_attr(model, include=['yaml', 'nc', 'hyp', 'names', 'stride', 'class_weights'])
+            ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride", "class_weights"])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
                 results, maps, _ = val.run(
