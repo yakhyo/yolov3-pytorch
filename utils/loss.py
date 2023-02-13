@@ -35,14 +35,14 @@ class ComputeLoss:
         self.anchors = m.anchors
         self.device = device
 
-    def __call__(self, p, targets):  # predictions, targets
-        lcls = torch.zeros(1, device=self.device)  # class loss
-        lbox = torch.zeros(1, device=self.device)  # box loss
-        lobj = torch.zeros(1, device=self.device)  # object loss
-        tcls, tbox, indices, anchors = self.build_targets(p, targets)  # targets
+    def __call__(self, predictions, targets):  # predictions, targets
+        cls_loss = torch.zeros(1, device=self.device)  # class loss
+        box_loss = torch.zeros(1, device=self.device)  # box loss
+        obj_loss = torch.zeros(1, device=self.device)  # object loss
+        tcls, tbox, indices, anchors = self.build_targets(predictions, targets)  # targets
 
         # Losses
-        for i, pi in enumerate(p):  # layer index, layer predictions
+        for i, pi in enumerate(predictions):  # layer index, layer predictions
             b, a, gj, gi = indices[i]  # image, anchor, gridy, gridx
             tobj = torch.zeros(pi.shape[:4], dtype=pi.dtype, device=self.device)  # target obj
 
@@ -56,7 +56,7 @@ class ComputeLoss:
                 pwh = (pwh.sigmoid() * 2) ** 2 * anchors[i]
                 pbox = torch.cat((pxy, pwh), 1)  # predicted box
                 iou = self.bbox_iou(pbox, tbox[i]).squeeze()  # iou(prediction, target)
-                lbox += (1.0 - iou).mean()  # iou loss
+                box_loss += (1.0 - iou).mean()  # iou loss
 
                 # Objectness
                 iou = iou.detach().clamp(0).type(tobj.dtype)
@@ -70,19 +70,19 @@ class ComputeLoss:
                 if self.nc > 1:  # cls loss (only if multiple classes)
                     t = torch.full_like(pcls, self.cn, device=self.device)  # targets
                     t[range(n), tcls[i]] = self.cp
-                    lcls += self.bce_loss(pcls, t)  # BCE
+                    cls_loss += self.bce_loss(pcls, t)  # BCE
 
             obji = self.bce_obj(pi[..., 4], tobj)
-            lobj += obji * self.balance[i]  # obj loss
+            obj_loss += obji * self.balance[i]  # obj loss
 
-        lbox *= self.hyp["box"]
-        lobj *= self.hyp["obj"]
-        lcls *= self.hyp["cls"]
+        box_loss *= self.hyp["box"]
+        obj_loss *= self.hyp["obj"]
+        cls_loss *= self.hyp["cls"]
         bs = tobj.shape[0]  # batch size
 
-        return (lbox + lobj + lcls) * bs, torch.cat((lbox, lobj, lcls)).detach()
+        return (box_loss + obj_loss + cls_loss) * bs, torch.cat((box_loss, obj_loss, cls_loss)).detach()
 
-    def build_targets(self, p, targets):
+    def build_targets(self, predictions, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
         na, nt = self.na, targets.shape[0]  # number of anchors, targets
         tcls, tbox, indices, anch = [], [], [], []
@@ -92,22 +92,22 @@ class ComputeLoss:
 
         g = 0.5  # bias
         off = (
-            torch.tensor(
-                [
-                    [0, 0],
-                    [1, 0],
-                    [0, 1],
-                    [-1, 0],
-                    [0, -1],  # j,k,l,m
-                    # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
-                ],
-                device=self.device,
-            ).float()
-            * g
+                torch.tensor(
+                    [
+                        [0, 0],
+                        [1, 0],
+                        [0, 1],
+                        [-1, 0],
+                        [0, -1],  # j,k,l,m
+                        # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
+                    ],
+                    device=self.device,
+                ).float()
+                * g
         )  # offsets
 
         for i in range(self.nl):
-            anchors, shape = self.anchors[i], p[i].shape
+            anchors, shape = self.anchors[i], predictions[i].shape
             gain[2:6] = torch.tensor(shape)[[3, 2, 3, 2]]  # xyxy gain
 
             # Match targets to anchors
@@ -156,9 +156,8 @@ class ComputeLoss:
         b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
 
         # Intersection area
-        inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * (
-            torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
-        ).clamp(0)
+        inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
+                (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
 
         # Union Area
         union = w1 * h1 + w2 * h2 - inter + eps
@@ -167,9 +166,9 @@ class ComputeLoss:
         iou = inter / union
         cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
         ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
-        c2 = cw**2 + ch**2 + eps  # convex diagonal squared
+        c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
         rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
-        v = (4 / math.pi**2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+        v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
         with torch.no_grad():
             alpha = v / (v - iou + (1 + eps))
         return iou - (rho2 / c2 + v * alpha)  # CIoU
