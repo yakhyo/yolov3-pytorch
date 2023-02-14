@@ -1,12 +1,12 @@
 import time
 from contextlib import contextmanager
 
+import numpy as np
+
 import torch
 import torch.distributed as dist
-
-import numpy as np
-from utils.general import colorstr
 from utils import LOGGER
+from utils.general import colorstr
 
 PREFIX = colorstr("AutoAnchor: ")
 

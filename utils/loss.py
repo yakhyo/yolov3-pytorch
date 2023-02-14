@@ -11,8 +11,6 @@ def smooth_bce(eps=0.1):
 
 
 class ComputeLoss:
-    sort_obj_iou = False
-
     # Compute losses
     def __init__(self, model):
         device = next(model.parameters()).device  # get model device
@@ -60,10 +58,6 @@ class ComputeLoss:
 
                 # Objectness
                 iou = iou.detach().clamp(0).type(tobj.dtype)
-                if self.sort_obj_iou:
-                    j = iou.argsort()
-                    b, a, gj, gi, iou = b[j], a[j], gj[j], gi[j], iou[j]
-
                 tobj[b, a, gj, gi] = iou  # iou ratio
 
                 # Classification
@@ -92,18 +86,18 @@ class ComputeLoss:
 
         g = 0.5  # bias
         off = (
-                torch.tensor(
-                    [
-                        [0, 0],
-                        [1, 0],
-                        [0, 1],
-                        [-1, 0],
-                        [0, -1],  # j,k,l,m
-                        # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
-                    ],
-                    device=self.device,
-                ).float()
-                * g
+            torch.tensor(
+                [
+                    [0, 0],
+                    [1, 0],
+                    [0, 1],
+                    [-1, 0],
+                    [0, -1],  # j,k,l,m
+                    # [1, 1], [1, -1], [-1, 1], [-1, -1],  # jk,jm,lk,lm
+                ],
+                device=self.device,
+            ).float()
+            * g
         )  # offsets
 
         for i in range(self.nl):
@@ -156,8 +150,9 @@ class ComputeLoss:
         b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
 
         # Intersection area
-        inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * \
-                (torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)).clamp(0)
+        inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * (
+            torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
+        ).clamp(0)
 
         # Union Area
         union = w1 * h1 + w2 * h2 - inter + eps
@@ -166,9 +161,9 @@ class ComputeLoss:
         iou = inter / union
         cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
         ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
-        c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
+        c2 = cw**2 + ch**2 + eps  # convex diagonal squared
         rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
-        v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+        v = (4 / math.pi**2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
         with torch.no_grad():
             alpha = v / (v - iou + (1 + eps))
         return iou - (rho2 / c2 + v * alpha)  # CIoU
