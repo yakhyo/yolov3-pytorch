@@ -258,7 +258,7 @@ def train(hyp, opt, device):
     LOGGER.info(
         f"Image sizes {image_size} train, {image_size} val\n"
         f"Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n"
-        f"Logging results to {colorstr('bold', save_dir)}\n"
+        f"Logging results to {colorstr(save_dir)}\n"
         f"Starting training for {epochs} epochs..."
     )
     # epoch ------------------------------------------------------------------
@@ -357,7 +357,6 @@ def train(hyp, opt, device):
                 checkpoint = {
                     "epoch": epoch,
                     "best_fitness": best_fitness,
-                    "model": deepcopy(model.module if hasattr(model, "module") else model).half(),
                     "ema": deepcopy(ema.model).half(),
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
@@ -398,7 +397,7 @@ def train(hyp, opt, device):
                         compute_loss=compute_loss,
                     )  # val best model with plots
 
-        LOGGER.info(f"Results saved to {colorstr('bold', save_dir)}")
+        LOGGER.info(f"Results saved to {colorstr(save_dir)}")
 
     torch.cuda.empty_cache()
     return results
@@ -407,9 +406,8 @@ def train(hyp, opt, device):
 def attempt_load(weights, map_location=None):
     # Loads an ensemble of nets weights=[a,b,c] or a single model weights=[a] or weights=a
     ckpt = torch.load(weights, map_location=map_location)  # load
-    ckpt = (ckpt["ema"] or ckpt["model"]).float()  # FP32 model
 
-    return ckpt.eval()  # return model
+    return ckpt["ema"].float().eval()  # return model
 
 
 def parse_opt(known=False):

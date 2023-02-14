@@ -53,31 +53,14 @@ def make_divisible(x, divisor):
     return math.ceil(x / divisor) * divisor
 
 
-def colorstr(*input):
-    # Colors a string https://en.wikipedia.org/wiki/ANSI_escape_code, i.e.  colorstr('blue', 'hello world')
-    *args, string = input if len(input) > 1 else ("blue", "bold", input[0])  # color arguments, string
+def colorstr(text):
     colors = {
-        "black": "\033[30m",  # basic colors
-        "red": "\033[31m",
-        "green": "\033[32m",
-        "yellow": "\033[33m",
         "blue": "\033[34m",
-        "magenta": "\033[35m",
-        "cyan": "\033[36m",
-        "white": "\033[37m",
-        "bright_black": "\033[90m",  # bright colors
-        "bright_red": "\033[91m",
-        "bright_green": "\033[92m",
-        "bright_yellow": "\033[93m",
-        "bright_blue": "\033[94m",
-        "bright_magenta": "\033[95m",
-        "bright_cyan": "\033[96m",
-        "bright_white": "\033[97m",
-        "end": "\033[0m",  # misc
+        "end": "\033[0m",
         "bold": "\033[1m",
         "underline": "\033[4m",
     }
-    return "".join(colors[x] for x in args) + f"{string}" + colors["end"]
+    return colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]
 
 
 def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
@@ -220,13 +203,13 @@ def clip_coords(boxes, shape):
 
 
 def non_max_suppression(
-    prediction,
-    conf_thres=0.25,
-    iou_thres=0.45,
-    classes=None,
-    agnostic=False,
-    multi_label=False,
-    max_det=300,
+        prediction,
+        conf_thres=0.25,
+        iou_thres=0.45,
+        classes=None,
+        agnostic=False,
+        multi_label=False,
+        max_det=300,
 ):
     # Checks
     assert 0 <= conf_thres <= 1, f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"
