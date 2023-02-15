@@ -114,7 +114,7 @@ def train(hyp, opt, device):
     pretrained = weights.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(weights, map_location=device)
-        state_dict = checkpoint["model"].float().state_dict()
+        state_dict = checkpoint["ema"].float().state_dict()
         model.load_state_dict(state_dict, strict=False)
         LOGGER.info(f"Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}")  # report
 
