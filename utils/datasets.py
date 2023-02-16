@@ -3,8 +3,6 @@
 Dataloaders and dataset utils
 """
 import glob
-import hashlib
-
 import math
 import os
 import random
@@ -26,14 +24,6 @@ from utils.misc import torch_distributed_zero_first
 IMG_FORMATS = ["jpg", "jpeg", "png"]
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
 NUM_THREADS = min(8, os.cpu_count())  # number of multiprocessing threads
-
-
-def get_hash(paths):
-    # Returns a single hash value of a list of paths (files or dirs)
-    size = sum(os.path.getsize(p) for p in paths if os.path.exists(p))  # sizes
-    h = hashlib.md5(str(size).encode())  # hash sizes
-    h.update("".join(paths).encode())  # hash paths
-    return h.hexdigest()  # return hash
 
 
 def create_dataloader(
@@ -84,7 +74,6 @@ def image2label(image_paths):
 
 class LoadImagesAndLabels(Dataset):
     #  train_loader/val_loader, loads images and labels for training and validation
-    cache_version = 0.6  # dataset labels *.cache version
 
     def __init__(self, path, image_size=640, augment=False, hyp=None, stride=32, prefix=""):
         self.input_size = image_size
@@ -128,8 +117,6 @@ class LoadImagesAndLabels(Dataset):
                 np.load(str(cache_path), allow_pickle=True).item(),
                 True,
             )  # load dict
-            assert cache["version"] == self.cache_version  # same version
-            assert cache["hash"] == get_hash(self.label_files + self.image_files)  # same hash
         except (FileNotFoundError, AssertionError):
             cache, exists = self.cache_labels(cache_path, prefix), False  # cache
 
@@ -140,7 +127,6 @@ class LoadImagesAndLabels(Dataset):
         assert nf > 0 or not augment, f"{prefix}No labels in {cache_path}. Can not train without labels."
 
         # Read cache
-        [cache.pop(k) for k in ("hash", "version")]  # remove items
         labels, shapes = zip(*cache.values())
 
         self.labels = list(labels)
@@ -271,9 +257,7 @@ class LoadImagesAndLabels(Dataset):
         if nf == 0:
             LOGGER.warning(f"{prefix}WARNING: No labels found in {path}.")
 
-        x["hash"] = get_hash(self.label_files + self.image_files)
         x["results"] = nf, nm, ne, nc, len(self.image_files)
-        x["version"] = self.cache_version  # cache version
 
         try:
             np.save(path, x)  # save cache for next time

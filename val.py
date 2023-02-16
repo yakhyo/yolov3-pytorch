@@ -138,8 +138,8 @@ def run(
 
         model = YOLOv3SPP().to(device)
         checkpoint = torch.load(weights, map_location=device)
-        names = checkpoint["ema"].names
-        state_dict = checkpoint["ema"].float().state_dict()
+        names = checkpoint["model"].names
+        state_dict = checkpoint["model"].float().state_dict()
         model.load_state_dict(state_dict, strict=False)
         model.names = names
 

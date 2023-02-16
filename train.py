@@ -114,7 +114,7 @@ def train(hyp, opt, device):
     pretrained = weights.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(weights, map_location=device)
-        state_dict = checkpoint["ema"].float().state_dict()
+        state_dict = checkpoint["model"].float().state_dict()
         model.load_state_dict(state_dict, strict=False)
         LOGGER.info(f"Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}")  # report
 
@@ -376,7 +376,7 @@ def train(hyp, opt, device):
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in [-1, 0]:
-        LOGGER.info(f"\n{epoch - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.")
+        LOGGER.info(f"\n{epochs - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.")
         for f in last, best:
             if os.path.exists(f):
                 strip_optimizer(f)  # strip optimizers
@@ -406,7 +406,7 @@ def attempt_load(weights, map_location=None):
     # Loads an ensemble of nets weights=[a,b,c] or a single model weights=[a] or weights=a
     ckpt = torch.load(weights, map_location=map_location)  # load
 
-    return ckpt["ema"].float().eval()  # return model
+    return ckpt["model"].float().eval()  # return model
 
 
 def parse_opt(known=False):
