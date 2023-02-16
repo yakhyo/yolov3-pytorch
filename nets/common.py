@@ -1,9 +1,9 @@
 import math
-from typing import List
 from copy import deepcopy
+from typing import List
 
 import torch
-from torch import Tensor, nn
+from torch import nn, Tensor
 
 
 def auto_pad(kernel_size, padding=None) -> int:
@@ -15,21 +15,21 @@ def auto_pad(kernel_size, padding=None) -> int:
         padding: new padding size
     """
     if padding is None:
-        padding = (kernel_size // 2 if isinstance(kernel_size, int) else [x // 2 for x in kernel_size])
+        padding = kernel_size // 2 if isinstance(kernel_size, int) else [x // 2 for x in kernel_size]
     return padding
 
 
 class Conv(nn.Module):
     # Standard convolution block
     def __init__(
-            self,
-            in_channels: int,
-            out_channels: int,
-            kernel_size: int = 1,
-            stride: int = 1,
-            padding=None,
-            groups: int = 1,
-            act=True,
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: int = 1,
+        stride: int = 1,
+        padding=None,
+        groups: int = 1,
+        act=True,
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
@@ -42,7 +42,7 @@ class Conv(nn.Module):
             bias=False,
         )
         self.bn = nn.BatchNorm2d(num_features=out_channels)
-        self.act = (nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity()))
+        self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
 
     def forward(self, x: Tensor) -> Tensor:
         return self.act(self.bn(self.conv(x)))
@@ -54,12 +54,12 @@ class Conv(nn.Module):
 class Bottleneck(nn.Module):
     # Standard Bottleneck
     def __init__(
-            self,
-            in_channels,
-            out_channels,
-            shortcut=True,
-            groups=1,
-            exp=0.5,
+        self,
+        in_channels,
+        out_channels,
+        shortcut=True,
+        groups=1,
+        exp=0.5,
     ) -> None:
         super().__init__()
         hidden_channels = int(out_channels * exp)  # hidden channels
@@ -109,9 +109,7 @@ class SPP(nn.Module):
             kernel_size=1,
             stride=1,
         )
-        self.pools = nn.ModuleList(
-            [nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k]
-        )
+        self.pools = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
 
     def forward(self, x):
         x = self.conv1(x)
@@ -169,7 +167,7 @@ class Detect(nn.Module):
 def copy_attr(a, b, include=(), exclude=()):
     # Copy attributes from b to a, options to only include [...] and to exclude [...]
     for k, v in b.__dict__.items():
-        if (len(include) and k not in include) or k.startswith('_') or k in exclude:
+        if (len(include) and k not in include) or k.startswith("_") or k in exclude:
             continue
         else:
             setattr(a, k, v)
@@ -192,12 +190,12 @@ class ModelEMA:
             self.updates += 1
             d = self.decay(self.updates)
 
-            msd = (model.module.state_dict() if hasattr(model, "module") else model.state_dict())  # model state_dict
+            msd = model.module.state_dict() if hasattr(model, "module") else model.state_dict()  # model state_dict
             for k, v in self.model.state_dict().items():
                 if v.dtype.is_floating_point:
                     v *= d
                     v += (1 - d) * msd[k].detach()
 
-    def update_attr(self, model, include=(), exclude=('process_group', 'reducer')):
+    def update_attr(self, model, include=(), exclude=("process_group", "reducer")):
         # Update EMA attributes
         copy_attr(self.model, model, include, exclude)

@@ -56,9 +56,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir=".", names
 
             # Recall
             recall = tpc / (n_l + 1e-16)  # recall curve
-            r[ci] = np.interp(
-                -px, -conf[i], recall[:, 0], left=0
-            )  # negative x, xp because xp decreases
+            r[ci] = np.interp(-px, -conf[i], recall[:, 0], left=0)  # negative x, xp because xp decreases
 
             # Precision
             precision = tpc / (tpc + fpc)  # precision curve
@@ -72,9 +70,7 @@ def ap_per_class(tp, conf, pred_cls, target_cls, plot=False, save_dir=".", names
 
     # Compute F1 (harmonic mean of precision and recall)
     f1 = 2 * p * r / (p + r + 1e-16)
-    names = [
-        v for k, v in names.items() if k in unique_classes
-    ]  # list: only classes that have data
+    names = [v for k, v in names.items() if k in unique_classes]  # list: only classes that have data
     names = {i: v for i, v in enumerate(names)}  # to dict
     if plot:
         plot_pr_curve(px, py, ap, Path(save_dir) / "PR_curve.png", names)
@@ -127,8 +123,8 @@ class ConfusionMatrix:
         Return intersection-over-union (Jaccard index) of boxes.
         Both sets of boxes are expected to be in (x1, y1, x2, y2) format.
         Arguments:
-            detections (Array[N, 6]), x1, y1, x2, y2, conf, class
-            labels (Array[M, 5]), class, x1, y1, x2, y2
+            detections: (Array[N, 6]), x1, y1, x2, y2, conf, class
+            labels: (Array[M, 5]), class, x1, y1, x2, y2
         Returns:
             None, updates confusion matrix accordingly
         """
@@ -139,11 +135,7 @@ class ConfusionMatrix:
 
         x = torch.where(iou > self.iou_thres)
         if x[0].shape[0]:
-            matches = (
-                torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1)
-                .cpu()
-                .numpy()
-            )
+            matches = torch.cat((torch.stack(x, 1), iou[x[0], x[1]][:, None]), 1).cpu().numpy()
             if x[0].shape[0] > 1:
                 matches = matches[matches[:, 2].argsort()[::-1]]
                 matches = matches[np.unique(matches[:, 1], return_index=True)[1]]
@@ -178,9 +170,7 @@ class ConfusionMatrix:
 
             fig = plt.figure(figsize=(12, 9), tight_layout=True)
             sn.set(font_scale=1.0 if self.nc < 50 else 0.8)  # for label size
-            labels = (0 < len(names) < 99) and len(
-                names
-            ) == self.nc  # apply names to ticklabels
+            labels = (0 < len(names) < 99) and len(names) == self.nc  # apply names to ticklabels
             with warnings.catch_warnings():
                 warnings.simplefilter("ignore")  # suppress empty matrix RuntimeWarning: All-NaN slice encountered
                 sn.heatmap(
@@ -226,17 +216,8 @@ def box_iou(box1, box2):
     area2 = box_area(box2.T)
 
     # inter(N,M) = (rb(N,M,2) - lt(N,M,2)).clamp(0).prod(2)
-    inter = (
-        (
-                torch.min(box1[:, None, 2:], box2[:, 2:])
-                - torch.max(box1[:, None, :2], box2[:, :2])
-        )
-        .clamp(0)
-        .prod(2)
-    )
-    return inter / (
-            area1[:, None] + area2 - inter
-    )  # iou = inter / (area1 + area2 - inter)
+    inter = (torch.min(box1[:, None, 2:], box2[:, 2:]) - torch.max(box1[:, None, :2], box2[:, :2])).clamp(0).prod(2)
+    return inter / (area1[:, None] + area2 - inter)  # iou = inter / (area1 + area2 - inter)
 
 
 # Plots ----------------------------------------------------------------------------------------------------------------
