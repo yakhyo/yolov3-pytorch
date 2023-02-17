@@ -167,8 +167,8 @@ def train(hyp, opt, device):
             best_fitness = checkpoint["best_fitness"]
 
         # EMA
-        if ema and checkpoint.get("ema"):
-            ema.model.load_state_dict(checkpoint["ema"].float().state_dict())
+        if ema and checkpoint.get("model"):
+            ema.model.load_state_dict(checkpoint["model"].float().state_dict())
             ema.updates = checkpoint["updates"]
 
         # Epochs
@@ -330,7 +330,7 @@ def train(hyp, opt, device):
 
         if RANK in [-1, 0]:
             # mAP
-            ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride", "class_weights"])
+            ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride"])
             final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
             if not noval or final_epoch:  # Calculate mAP
                 results, maps, _ = val.run(
@@ -356,7 +356,7 @@ def train(hyp, opt, device):
                 checkpoint = {
                     "epoch": epoch,
                     "best_fitness": best_fitness,
-                    "ema": deepcopy(ema.model).half(),
+                    "model": deepcopy(ema.model).half(),
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
                     "date": datetime.now().isoformat(),

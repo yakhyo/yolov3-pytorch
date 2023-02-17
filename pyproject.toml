@@ -6,7 +6,7 @@ authors = [
 ]
 description = "Template for ML/DL projects"
 readme = "README.md"
-requires-python = ">=3.7"
+requires-python = ">=3.10"
 license = {file = "LICENSE"}
 
 
@@ -17,7 +17,7 @@ first_party_detection = false
 [tool.black]
 
 line-length = 120
-target-version = ["py37", "py38", "py39", "py310"]
+target-version = ["py38", "py39", "py310"]
 
 [tool.ufmt]
 
