@@ -279,12 +279,12 @@ def strip_optimizer(f="best.pt"):
     x = torch.load(f, map_location=torch.device("cpu"))
     for k in "optimizer", "updates", "best_fitness", "date":  # keys
         x[k] = None
-    x['epoch'] = -1 # ignore for now
+    x["epoch"] = -1  # ignore for now
     x["model"].half()  # to FP16
     for p in x["model"].parameters():
         p.requires_grad = False
     torch.save(x, f)
-    file_size = os.path.getsize(f) / 1E6
+    file_size = os.path.getsize(f) / 1e6
     print(f"Optimizer stripped from {f},{(' saved as %s,' % f)} {file_size:.1f}MB")
 
 
