@@ -91,19 +91,11 @@ class LoadImagesAndLabels(Dataset):
         #     raise Exception(f"{prefix}Error loading data from {path}: {e}")
         try:
             f = []  # image files
-            for p in path if isinstance(path, list) else [path]:
-                p = Path(p)  # os-agnostic
-                if p.is_dir():  # dir
-                    f += glob.glob(str(p / "**" / "*.*"), recursive=True)
-                    # f = list(p.rglob('*.*'))  # pathlib
-                elif p.is_file():  # file
-                    with open(p) as t:
-                        t = t.read().strip().splitlines()
-                        parent = str(p.parent) + os.sep
-                        f += [x.replace("./", parent) if x.startswith("./") else x for x in t]  # local to global path
-                        # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
-                else:
-                    raise Exception(f"{prefix}{p} does not exist")
+            p = Path(path)  # os-agnostic
+            with open(p) as t:
+                t = t.read().strip().splitlines()
+                parent = str(p.parent) + os.sep
+                f += [x.replace("./", parent) if x.startswith("./") else x for x in t]  # local to global path
             self.image_files = sorted(x.replace("/", os.sep) for x in f if x.split(".")[-1].lower() in IMG_FORMATS)
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
             assert self.image_files, f"{prefix}No images found"
