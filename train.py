@@ -354,7 +354,6 @@ def train(hyp, opt, device):
                     "model": deepcopy(ema.model).half(),
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
-                    "date": datetime.now().isoformat(),
                 }
 
                 # Save last, best and delete

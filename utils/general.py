@@ -212,8 +212,6 @@ def non_max_suppression(
     max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
     time_limit = 0.5 + 0.05 * bs  # seconds to quit after
     multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
-    redundant = True  # require redundant detections
-    merge = False  # use merge-NMS
 
     t = time.time()
     output = [torch.zeros((0, 6), device=prediction.device)] * bs
@@ -255,13 +253,6 @@ def non_max_suppression(
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         if i.shape[0] > max_det:  # limit detections
             i = i[:max_det]
-        if merge and (1 < n < 3e3):  # Merge NMS (boxes merged using weighted mean)
-            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
-            weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
-            if redundant:
-                i = i[iou.sum(1) > 1]  # require redundancy
 
         output[xi] = x[i]
         if (time.time() - t) > time_limit:
@@ -273,7 +264,7 @@ def non_max_suppression(
 
 def strip_optimizer(f="best.pt"):
     x = torch.load(f, map_location=torch.device("cpu"))
-    for k in "optimizer", "updates", "best_fitness", "date":  # keys
+    for k in "optimizer", "updates", "best_fitness":  # keys
         x[k] = None
     x["epoch"] = -1  # ignore for now
     x["model"].half()  # to FP16
