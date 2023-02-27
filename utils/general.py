@@ -58,15 +58,11 @@ def colorstr(text):
         "bold": "\033[1m",
         "underline": "\033[4m",
     }
-    return colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]
+    return f'{colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]}'
 
 
-def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
-    # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
-    # a = np.loadtxt('data/coco.names', dtype='str', delimiter='\n')
-    # b = np.loadtxt('data/coco_paper.names', dtype='str', delimiter='\n')
-    # x1 = [list(a[i] == b).index(True) + 1 for i in range(80)]  # darknet to coco
-    # x2 = [list(b[i] == a).index(True) if any(b[i] == a) else None for i in range(91)]  # coco to darknet
+def coco80_to_coco91_class():
+    # converts 80-index (val2014) to 91-index (paper)
     x = [
         1,
         2,
