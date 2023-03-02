@@ -278,12 +278,7 @@ def train(hyp, opt, device):
             )  # progress bar
         optimizer.zero_grad()
         # batch -------------------------------------------------------------
-        for i, (
-            imgs,
-            targets,
-            paths,
-            _,
-        ) in pbar:
+        for i, (imgs, targets, paths, _,) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -359,7 +354,6 @@ def train(hyp, opt, device):
                     "model": deepcopy(ema.model).half(),
                     "updates": ema.updates,
                     "optimizer": optimizer.state_dict(),
-                    "date": datetime.now().isoformat(),
                 }
 
                 # Save last, best and delete

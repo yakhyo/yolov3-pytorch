@@ -58,15 +58,11 @@ def colorstr(text):
         "bold": "\033[1m",
         "underline": "\033[4m",
     }
-    return colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]
+    return f'{colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]}'
 
 
-def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
-    # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
-    # a = np.loadtxt('data/coco.names', dtype='str', delimiter='\n')
-    # b = np.loadtxt('data/coco_paper.names', dtype='str', delimiter='\n')
-    # x1 = [list(a[i] == b).index(True) + 1 for i in range(80)]  # darknet to coco
-    # x2 = [list(b[i] == a).index(True) if any(b[i] == a) else None for i in range(91)]  # coco to darknet
+def coco80_to_coco91_class():
+    # converts 80-index (val2014) to 91-index (paper)
     x = [
         1,
         2,
@@ -216,8 +212,6 @@ def non_max_suppression(
     max_nms = 30000  # maximum number of boxes into torchvision.ops.nms()
     time_limit = 0.5 + 0.05 * bs  # seconds to quit after
     multi_label &= nc > 1  # multiple labels per box (adds 0.5ms/img)
-    redundant = True  # require redundant detections
-    merge = False  # use merge-NMS
 
     t = time.time()
     output = [torch.zeros((0, 6), device=prediction.device)] * bs
@@ -259,13 +253,6 @@ def non_max_suppression(
         i = torchvision.ops.nms(boxes, scores, iou_thres)  # NMS
         if i.shape[0] > max_det:  # limit detections
             i = i[:max_det]
-        if merge and (1 < n < 3e3):  # Merge NMS (boxes merged using weighted mean)
-            # update boxes as boxes(i,4) = weights(i,n) * boxes(n,4)
-            iou = box_iou(boxes[i], boxes) > iou_thres  # iou matrix
-            weights = iou * scores[None]  # box weights
-            x[i, :4] = torch.mm(weights, x[:, :4]).float() / weights.sum(1, keepdim=True)  # merged boxes
-            if redundant:
-                i = i[iou.sum(1) > 1]  # require redundancy
 
         output[xi] = x[i]
         if (time.time() - t) > time_limit:
@@ -277,7 +264,7 @@ def non_max_suppression(
 
 def strip_optimizer(f="best.pt"):
     x = torch.load(f, map_location=torch.device("cpu"))
-    for k in "optimizer", "updates", "best_fitness", "date":  # keys
+    for k in "optimizer", "updates", "best_fitness":  # keys
         x[k] = None
     x["epoch"] = -1  # ignore for now
     x["model"].half()  # to FP16

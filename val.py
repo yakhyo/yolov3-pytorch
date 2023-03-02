@@ -38,6 +38,8 @@ from utils.general import (
 from utils.metrics import ap_per_class, ConfusionMatrix
 from utils.misc import time_sync
 
+from nets import YOLOv3, YOLOv3SPP, YOLOv3Tiny
+
 
 def save_one_txt(predn, save_conf, shape, file):
     # Save one txt result
@@ -92,31 +94,31 @@ def process_batch(detections, labels, iouv):
 
 @torch.no_grad()
 def run(
-    data,
-    weights=None,  # model.pt path(s)
-    batch_size=32,  # batch size
-    imgsz=640,  # inference size (pixels)
-    conf_thres=0.001,  # confidence threshold
-    iou_thres=0.6,  # NMS IoU threshold
-    task="val",  # train, val, test, speed or study
-    device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-    augment=False,  # augmented inference
-    verbose=False,  # verbose output
-    save_txt=False,  # save results to *.txt
-    save_hybrid=False,  # save label+prediction hybrid results to *.txt
-    save_conf=False,  # save confidences in --save-txt labels
-    save_json=False,  # save a COCO-JSON results file
-    project=ROOT / "runs/val",  # save to project/name
-    name="exp",  # save to project/name
-    exist_ok=False,  # existing project/name ok, do not increment
-    half=True,  # use FP16 half-precision inference
-    dnn=False,  # use OpenCV DNN for ONNX inference
-    model=None,
-    dataloader=None,
-    save_dir=Path(""),
-    plots=True,
-    # callbacks=Callbacks(),
-    compute_loss=None,
+        data,
+        weights=None,  # model.pt path(s)
+        batch_size=32,  # batch size
+        imgsz=640,  # inference size (pixels)
+        conf_thres=0.001,  # confidence threshold
+        iou_thres=0.6,  # NMS IoU threshold
+        task="val",  # train, val, test, speed or study
+        device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+        augment=False,  # augmented inference
+        verbose=False,  # verbose output
+        save_txt=False,  # save results to *.txt
+        save_hybrid=False,  # save label+prediction hybrid results to *.txt
+        save_conf=False,  # save confidences in --save-txt labels
+        save_json=False,  # save a COCO-JSON results file
+        project=ROOT / "runs/val",  # save to project/name
+        name="exp",  # save to project/name
+        exist_ok=False,  # existing project/name ok, do not increment
+        half=True,  # use FP16 half-precision inference
+        dnn=False,  # use OpenCV DNN for ONNX inference
+        model=None,
+        dataloader=None,
+        save_dir=Path(""),
+        plots=True,
+        # callbacks=Callbacks(),
+        compute_loss=None,
 ):
     # Initialize/load model and set device
     training = model is not None
@@ -133,8 +135,6 @@ def run(
         (save_dir / "labels" if save_txt else save_dir).mkdir(parents=True, exist_ok=True)  # make dir
 
         # Load model
-
-        from nets import YOLOv3, YOLOv3SPP, YOLOv3Tiny
 
         model = YOLOv3SPP().to(device)
         checkpoint = torch.load(weights, map_location=device)
