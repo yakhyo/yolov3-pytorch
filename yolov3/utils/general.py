@@ -78,7 +78,7 @@ def xywh2xyxy(x):
     return y
 
 
-def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
+def scale_boxes(img1_shape, coords, img0_shape, ratio_pad=None):
     # Rescale coords (xyxy) from img1_shape to img0_shape
     if ratio_pad is None:  # calculate from img0_shape
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
@@ -107,7 +107,13 @@ def clip_coords(boxes, shape):
 
 
 def non_max_suppression(
-        prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False, max_det=300
+        prediction,
+        conf_thres=0.25,
+        iou_thres=0.45,
+        classes=None,
+        agnostic=False,
+        multi_label=False,
+        max_det=300
 ):
     # Checks
     assert 0 <= conf_thres <= 1, f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"

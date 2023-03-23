@@ -11,7 +11,7 @@ from yolov3.utils.general import (
     check_img_size,
     colorstr,
     non_max_suppression,
-    scale_coords,
+    scale_boxes,
     xywh2xyxy,
 )
 from yolov3.utils.metrics import box_iou
@@ -146,38 +146,35 @@ def run(
         # Metrics
         for i, output in enumerate(outputs):
             labels = targets[targets[:, 0] == i, 1:]
-            tcls = labels[:, 0].tolist() if labels.shape[0] else []  # target class
             path, shape = Path(paths[i]), shapes[i][0]
+            correct = torch.zeros(output.shape[0], niou, dtype=torch.bool, device=device)  # init
             seen += 1
 
-            if len(output) == 0:
-                if labels.shape[0]:
-                    stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), tcls))
+            if output.shape[0] == 0:  # number of predictions
+                if labels.shape[0]:  # number of labels
+                    stats.append((torch.zeros(0, niou, dtype=torch.bool), torch.Tensor(), torch.Tensor(), labels[:, 0]))
                 continue
 
             # Predictions
             predictions = output.clone()
-            scale_coords(images[i].shape[1:], predictions[:, :4], shape, shapes[i][1])  # native-space pred
+            scale_boxes(images[i].shape[1:], predictions[:, :4], shape, shapes[i][1])  # native-space pred
 
             # Evaluate
             if labels.shape[0]:
                 tbox = xywh2xyxy(labels[:, 1:5])  # target boxes
-                scale_coords(images[i].shape[1:], tbox, shape, shapes[i][1])  # native-space labels
+                scale_boxes(images[i].shape[1:], tbox, shape, shapes[i][1])  # native-space labels
                 labelsn = torch.cat((labels[:, 0:1], tbox), 1)  # native-space labels
                 correct = process_batch(predictions, labelsn, iouv)
-            else:
-                correct = torch.zeros(output.shape[0], niou, dtype=torch.bool)
-            stats.append((correct.cpu(), output[:, 4].cpu(), output[:, 5].cpu(), tcls))  # (correct, conf, pcls, tcls)
+
+            stats.append((correct, output[:, 4], output[:, 5], labels[:, 0]))  # (correct, conf, pcls, tcls)
 
     # Compute metrics
-    stats = [np.concatenate(x, 0) for x in zip(*stats)]  # to numpy
+    stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
         p, r, ap, f1, ap_class = ap_per_class(*stats)
         ap50, ap = ap[:, 0], ap.mean(1)  # AP@0.5, AP@0.5:0.95
         mp, mr, map50, map = p.mean(), r.mean(), ap50.mean(), ap.mean()
-        nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
-    else:
-        nt = torch.zeros(1)
+    nt = np.bincount(stats[3].astype(np.int64), minlength=nc)  # number of targets per class
 
     # Print results
     print_format = "%20s" + "%11i" * 2 + "%11.3g" * 4  # print format

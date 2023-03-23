@@ -8,7 +8,6 @@ Usage:
 import argparse
 import math
 import os
-import time
 from copy import deepcopy
 from pathlib import Path
 
@@ -358,7 +357,7 @@ def parse_opt(known=False):
     parser.add_argument("--noautoanchor", action="store_true", help="disable autoanchor check")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help='--cache images in "ram" (default) or "disk"')
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam', 'AdamW'], default='Adam', help='optimizer')
+    parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam', 'AdamW'], default='SGD', help='optimizer')
     parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
     parser.add_argument("--workers", type=int, default=16, help="max dataloader workers (per RANK in DDP mode)")
     parser.add_argument("--name", default="exp", help="save to project/name")
