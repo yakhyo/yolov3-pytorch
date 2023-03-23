@@ -21,7 +21,7 @@ from tqdm import tqdm
 
 from yolov3.models import YOLOv3SPP
 from yolov3.models.common import ModelEMA
-from yolov3.utils import LOGGER
+from yolov3 import LOGGER
 from yolov3.utils.datasets import create_dataloader
 from yolov3.utils.general import check_img_size, colorstr, init_seeds, smart_optimizer, strip_optimizer
 from yolov3.utils.loss import ComputeLoss

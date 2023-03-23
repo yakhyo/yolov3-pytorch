@@ -1,1 +1,5 @@
-from yolov3.models import YOLOv3, YOLOv3SPP, YOLOv3Tiny
+import logging
+
+logging.basicConfig(format="%(message)s", level=logging.INFO)
+LOGGER = logging.getLogger(__name__)
+

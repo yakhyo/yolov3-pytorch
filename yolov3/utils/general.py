@@ -1,26 +1,13 @@
-# YOLOv3 🚀 by Ultralytics, GPL-3.0 license
-"""
-General utils
-"""
-
-import glob
 import math
 import os
 import random
-import re
 import time
-from pathlib import Path
 
 import numpy as np
 import torch
 import torch.nn as nn
 import torchvision
-from yolov3.utils import LOGGER
-
-# Settings
-torch.set_printoptions(linewidth=320, precision=5, profile="long")
-np.set_printoptions(linewidth=320, formatter={"float_kind": "{:11.5g}".format})  # format short g, %precision=5
-os.environ["NUMEXPR_MAX_THREADS"] = str(min(os.cpu_count(), 8))  # NumExpr max threads
+from yolov3 import LOGGER
 
 
 def init_seeds(seed=0):

@@ -1,8 +1,3 @@
-# YOLOv3 🚀 by Ultralytics, GPL-3.0 license
-"""
-Dataloaders and dataset utils
-"""
-
 import os
 import random
 from pathlib import Path
@@ -14,10 +9,9 @@ import torch
 from PIL import Image
 from torch.utils import data
 
-# from torch.utils.data import DataLoader, Dataset, distributed
 from tqdm import tqdm
 
-from yolov3.utils import LOGGER
+from yolov3 import LOGGER
 from yolov3.utils.augmentations import augment_hsv, letterbox, mixup, random_perspective, xywhn2xyxy, xyxy2xywhn
 from yolov3.utils.misc import torch_distributed_zero_first
 
@@ -264,8 +258,8 @@ class LoadImagesAndLabels(torch.utils.data.Dataset):
         h, w = image.shape[:2]  # orig hw
         r = self.input_size / max(h, w)  # ratio
         if r != 1:
-            mode = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
-            image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=mode)
+            interpolation_mode = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
+            image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=interpolation_mode)
         return image, (h, w), image.shape[:2]  # image, hw_original, hw_resized
 
     def load_mosaic(self, idx, hyp):
