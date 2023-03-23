@@ -1,12 +1,11 @@
-import time
 from contextlib import contextmanager
 
 import numpy as np
 
 import torch
 import torch.distributed as dist
-from utils import LOGGER
-from utils.general import colorstr
+from yolov3.utils import LOGGER
+from yolov3.utils.general import colorstr
 
 PREFIX = colorstr("AutoAnchor: ")
 
@@ -41,13 +40,6 @@ def torch_distributed_zero_first(local_rank: int):
     yield
     if local_rank == 0:
         dist.barrier(device_ids=[0])
-
-
-def time_sync():
-    # pytorch-accurate time
-    if torch.cuda.is_available():
-        torch.cuda.synchronize()
-    return time.time()
 
 
 class EarlyStopping:

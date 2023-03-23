@@ -1,5 +1,4 @@
-import math
-
+from yolov3.utils.metrics import bbox_iou
 import torch
 import torch.nn as nn
 
@@ -52,7 +51,7 @@ class ComputeLoss:
                 pxy = pxy.sigmoid() * 2 - 0.5
                 pwh = (pwh.sigmoid() * 2) ** 2 * anchors[i]
                 pbox = torch.cat((pxy, pwh), 1)  # predicted box
-                iou = self.bbox_iou(pbox, tbox[i]).squeeze()  # iou(prediction, target)
+                iou = bbox_iou(pbox, tbox[i]).squeeze()  # iou(prediction, target)
                 box_loss += (1.0 - iou).mean()  # iou loss
 
                 # Objectness
@@ -124,32 +123,3 @@ class ComputeLoss:
             tcls.append(c)  # class
 
         return tcls, tbox, indices, anch
-
-    @staticmethod
-    def bbox_iou(box1, box2, eps=1e-7):
-        # Returns Intersection over Union (IoU) of box1(1,4) to box2(n,4)
-
-        # Get the coordinates of bounding boxes
-        (x1, y1, w1, h1), (x2, y2, w2, h2) = box1.chunk(4, 1), box2.chunk(4, 1)
-        w1_, h1_, w2_, h2_ = w1 / 2, h1 / 2, w2 / 2, h2 / 2
-        b1_x1, b1_x2, b1_y1, b1_y2 = x1 - w1_, x1 + w1_, y1 - h1_, y1 + h1_
-        b2_x1, b2_x2, b2_y1, b2_y2 = x2 - w2_, x2 + w2_, y2 - h2_, y2 + h2_
-
-        # Intersection area
-        inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * (
-            torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
-        ).clamp(0)
-
-        # Union Area
-        union = w1 * h1 + w2 * h2 - inter + eps
-
-        # IoU
-        iou = inter / union
-        cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
-        ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
-        c2 = cw**2 + ch**2 + eps  # convex diagonal squared
-        rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
-        v = (4 / math.pi**2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
-        with torch.no_grad():
-            alpha = v / (v - iou + (1 + eps))
-        return iou - (rho2 / c2 + v * alpha)  # CIoU

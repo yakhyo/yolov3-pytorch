@@ -3,7 +3,7 @@ from typing import Tuple
 
 import torch
 
-from nets.common import Concat, Conv, Detect
+from yolov3.models.common import Concat, Conv, Detect
 from torch import nn, Tensor
 
 nc = 80  # number of classes

@@ -3,7 +3,7 @@ from typing import List, Type
 
 import torch
 
-from nets.common import Bottleneck, Concat, Conv, Detect, SPP
+from yolov3.models.common import Bottleneck, Concat, Conv, Detect
 from torch import nn, Tensor
 
 # Parameters
@@ -64,11 +64,11 @@ class Backbone(nn.Module):
         return [b6, b8, b10]
 
 
-class HeadSPP(nn.Module):
+class Head(nn.Module):
     def __init__(self):
         super().__init__()
         self.h11 = Bottleneck(in_channels=1024, out_channels=1024, shortcut=False)
-        self.h12 = SPP(in_channels=1024, out_channels=512, k=(5, 9, 13))
+        self.h12 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
         self.h13 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)
         self.h14 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
         self.h15 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)  # P5/32-large
@@ -117,11 +117,12 @@ class HeadSPP(nn.Module):
         return [h27, h22, h15]
 
 
-class YOLOv3SPP(nn.Module):
+class YOLOv3(nn.Module):
     def __init__(self, in_ch=3, num_classes=80, anchors=anchors):
         super().__init__()
         self.backbone = Backbone()
-        self.head = HeadSPP()
+        self.head = Head()
+
         self.detect = Detect(anchors=anchors, nc=num_classes, ch=(256, 512, 1024))
 
         self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))])
@@ -161,7 +162,7 @@ class YOLOv3SPP(nn.Module):
 
 
 if __name__ == "__main__":
-    net = YOLOv3SPP(anchors=anchors)
+    net = YOLOv3(anchors=anchors)
     net.eval()
 
     img = torch.randn(1, 3, 640, 640)

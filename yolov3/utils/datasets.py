@@ -2,8 +2,7 @@
 """
 Dataloaders and dataset utils
 """
-import glob
-import math
+
 import os
 import random
 from pathlib import Path
@@ -13,30 +12,30 @@ import numpy as np
 
 import torch
 from PIL import Image
-from torch.utils.data import DataLoader, Dataset, distributed
+# from torch.utils.data import DataLoader, Dataset, distributed
 from tqdm import tqdm
+from torch.utils import data
 
-from utils import LOGGER
-from utils.general import clip_coords
-from utils.misc import torch_distributed_zero_first
+from yolov3.utils import LOGGER
+from yolov3.utils.misc import torch_distributed_zero_first
+from yolov3.utils.augmentations import random_perspective, mixup, letterbox, xywhn2xyxy, xyxy2xywhn, augment_hsv
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]
 WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
-NUM_THREADS = min(8, os.cpu_count())  # number of multiprocessing threads
 
 
 def create_dataloader(
-    path,
-    image_size,
-    batch_size,
-    stride,
-    hyp=None,
-    augment=False,
-    rank=-1,
-    workers=16,
-    prefix="",
-    shuffle=False,
+        path,
+        image_size,
+        batch_size,
+        stride,
+        hyp=None,
+        augment=False,
+        rank=-1,
+        workers=16,
+        prefix="",
+        shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
@@ -50,9 +49,9 @@ def create_dataloader(
 
     batch_size = min(batch_size, len(dataset))
     num_workers = min([os.cpu_count() // WORLD_SIZE, batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = None if rank == -1 else distributed.DistributedSampler(dataset, shuffle=shuffle)
+    sampler = None if rank == -1 else torch.utils.data.distributed.DistributedSampler(dataset, shuffle=shuffle)
     return (
-        DataLoader(
+        torch.utils.data.DataLoader(
             dataset,
             batch_size=batch_size,
             shuffle=shuffle and sampler is None,
@@ -72,7 +71,7 @@ def image2label(image_paths):
     return [sb.join(x.rsplit(sa, 1)).rsplit(".", 1)[0] + ".txt" for x in image_paths]
 
 
-class LoadImagesAndLabels(Dataset):
+class LoadImagesAndLabels(torch.utils.data.Dataset):
     #  train_loader/val_loader, loads images and labels for training and validation
 
     def __init__(self, path, image_size=640, augment=False, hyp=None, stride=32, prefix=""):
@@ -134,41 +133,33 @@ class LoadImagesAndLabels(Dataset):
         return len(self.image_files)
 
     def __getitem__(self, idx):
-        idx = self.indices[idx]  # linear, shuffled, or image_weights
+        index = self.indices[idx]  # linear, shuffled, or image_weights
 
         hyp = self.hyp
         mosaic = self.mosaic and random.random() < hyp["mosaic"]
         if mosaic:
             # Load mosaic
-            image, labels = self.load_mosaic(idx)
             shapes = None
+            image, labels = self.load_mosaic(index, hyp)
             # MixUp augmentation
             if random.random() < hyp["mixup"]:
-                image, labels = mixup(image, labels, *self.load_mosaic(random.randint(0, self.num - 1)))
+                random_idx = random.randint(0, self.num - 1)
+                image, labels = mixup(image, labels, *self.load_mosaic(random_idx))
 
         else:
             # Load image
-            image, (h0, w0), (h, w) = self.load_image(idx)
+            image, (h0, w0), (h, w) = self.load_image(index)
 
             # Letterbox
-            shape = self.input_size  # final letterboxed shape
-            image, ratio, pad = letterbox(image, shape, auto=False, scaleup=self.augment)
+            image, ratio, pad = letterbox(image, self.input_size, auto=False, scaleup=self.augment)
             shapes = (h0, w0), ((h / h0, w / w0), pad)  # for COCO mAP rescaling
-            labels = self.labels[idx].copy()
 
+            labels = self.labels[index].copy()
             if labels.size:  # normalized xywh to pixel xyxy format
                 labels[:, 1:] = xywhn2xyxy(labels[:, 1:], ratio[0] * w, ratio[1] * h, padw=pad[0], padh=pad[1])
 
             if self.augment:
-                image, labels = random_perspective(
-                    image,
-                    labels,
-                    degrees=hyp["degrees"],
-                    translate=hyp["translate"],
-                    scale=hyp["scale"],
-                    shear=hyp["shear"],
-                    perspective=hyp["perspective"],
-                )
+                image, labels = random_perspective(image, labels, hyp)
 
         nl = len(labels)  # number of labels
         if nl:
@@ -190,15 +181,15 @@ class LoadImagesAndLabels(Dataset):
                 if nl:
                     labels[:, 1] = 1 - labels[:, 1]
 
-        labels_out = torch.zeros((nl, 6))
+        targets = torch.zeros((nl, 6))
         if nl:
-            labels_out[:, 1:] = torch.from_numpy(labels)
+            targets[:, 1:] = torch.from_numpy(labels)
 
-        # Convert
-        image = image.transpose((2, 0, 1))[::-1]  # HWC to CHW, BGR to RGB
+        # Convert HWC to CHW, BGR to RGB
+        image = image.transpose((2, 0, 1))[::-1]
         image = np.ascontiguousarray(image)
 
-        return torch.from_numpy(image), labels_out, self.image_files[idx], shapes
+        return torch.from_numpy(image), targets, self.image_files[idx], shapes
 
     def cache_labels(self, path=Path("./labels.cache"), prefix=""):
         # Cache dataset labels, check images and read shapes
@@ -264,7 +255,7 @@ class LoadImagesAndLabels(Dataset):
         img, label, path, shapes = zip(*batch)  # transposed
         for i, l in enumerate(label):
             l[:, 0] = i  # add target image index for build_targets()
-        return torch.stack(img, 0), torch.cat(label, 0), path, shapes
+        return torch.stack(img), torch.cat(label), path, shapes
 
     def load_image(self, idx):
         image = cv2.imread(self.image_files[idx])  # BGR
@@ -272,11 +263,11 @@ class LoadImagesAndLabels(Dataset):
         h, w = image.shape[:2]  # orig hw
         r = self.input_size / max(h, w)  # ratio
         if r != 1:
-            resample = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
-            image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=resample)
+            mode = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
+            image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=mode)
         return image, (h, w), image.shape[:2]  # image, hw_original, hw_resized
 
-    def load_mosaic(self, idx):
+    def load_mosaic(self, idx, hyp):
         #  4-mosaic loader. Loads 1 image + 3 random images into a 4-image mosaic
         labels4 = []
         image4 = np.full((self.input_size * 2, self.input_size * 2, 3), 114, dtype=np.uint8)  # base image with 4 tiles
@@ -349,171 +340,8 @@ class LoadImagesAndLabels(Dataset):
         image4, labels4 = random_perspective(
             image4,
             labels4,
-            degrees=self.hyp["degrees"],
-            translate=self.hyp["translate"],
-            scale=self.hyp["scale"],
-            shear=self.hyp["shear"],
-            perspective=self.hyp["perspective"],
+            hyp,
             border=self.mosaic_border,
         )  # border to remove
 
         return image4, labels4
-
-
-def random_perspective(
-    image,
-    targets=(),
-    degrees=10,
-    translate=0.1,
-    scale=0.1,
-    shear=10,
-    perspective=0.0,
-    border=(0, 0),
-):
-    # targets = [cls, xyxy]
-    height = image.shape[0] + border[0] * 2  # shape(h,w,c)
-    width = image.shape[1] + border[1] * 2
-
-    # Center
-    C = np.eye(3)
-    C[0, 2] = -image.shape[1] / 2  # x translation (pixels)
-    C[1, 2] = -image.shape[0] / 2  # y translation (pixels)
-
-    # Perspective
-    P = np.eye(3)
-    P[2, 0] = random.uniform(-perspective, perspective)  # x perspective (about y)
-    P[2, 1] = random.uniform(-perspective, perspective)  # y perspective (about x)
-
-    # Rotation and Scale
-    R = np.eye(3)
-    a = random.uniform(-degrees, degrees)
-    s = random.uniform(1 - scale, 1 + scale)
-    R[:2] = cv2.getRotationMatrix2D(angle=a, center=(0, 0), scale=s)
-
-    # Shear
-    S = np.eye(3)
-    S[0, 1] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # x shear (deg)
-    S[1, 0] = math.tan(random.uniform(-shear, shear) * math.pi / 180)  # y shear (deg)
-
-    # Translation
-    T = np.eye(3)
-    T[0, 2] = random.uniform(0.5 - translate, 0.5 + translate) * width  # x translation (pixels)
-    T[1, 2] = random.uniform(0.5 - translate, 0.5 + translate) * height  # y translation (pixels)
-
-    # Combined rotation matrix
-    M = T @ S @ R @ P @ C  # order of operations (right to left) is IMPORTANT
-    if (border[0] != 0) or (border[1] != 0) or (M != np.eye(3)).any():  # image changed
-        if perspective:
-            image = cv2.warpPerspective(image, M, dsize=(width, height), borderValue=(114, 114, 114))
-        else:  # affine
-            image = cv2.warpAffine(image, M[:2], dsize=(width, height), borderValue=(114, 114, 114))
-
-    # Transform label coordinates
-    n = len(targets)
-    if n:
-        xy = np.ones((n * 4, 3))
-        xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
-        xy = xy @ M.T  # transform
-        xy = (xy[:, :2] / xy[:, 2:3] if perspective else xy[:, :2]).reshape(n, 8)  # perspective rescale or affine
-
-        # create new boxes
-        x = xy[:, [0, 2, 4, 6]]
-        y = xy[:, [1, 3, 5, 7]]
-        new = np.concatenate((x.min(1), y.min(1), x.max(1), y.max(1))).reshape(4, n).T
-
-        # clip
-        new[:, [0, 2]] = new[:, [0, 2]].clip(0, width)
-        new[:, [1, 3]] = new[:, [1, 3]].clip(0, height)
-
-        # filter candidates
-        i = box_candidates(box1=targets[:, 1:5].T * s, box2=new.T, area_thr=0.10)
-        targets = targets[i]
-        targets[:, 1:5] = new[i]
-
-    return image, targets
-
-
-def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  # box1(4,n), box2(4,n)
-    w1, h1 = box1[2] - box1[0], box1[3] - box1[1]
-    w2, h2 = box2[2] - box2[0], box2[3] - box2[1]
-    ar = np.maximum(w2 / (h2 + eps), h2 / (w2 + eps))  # aspect ratio
-    return (w2 > wh_thr) & (h2 > wh_thr) & (w2 * h2 / (w1 * h1 + eps) > area_thr) & (ar < ar_thr)  # candidates
-
-
-def augment_hsv(im, hgain=0.5, sgain=0.5, vgain=0.5):
-    # HSV color-space augmentation
-    if hgain or sgain or vgain:
-        r = np.random.uniform(-1, 1, 3) * [hgain, sgain, vgain] + 1  # random gains
-        hue, sat, val = cv2.split(cv2.cvtColor(im, cv2.COLOR_BGR2HSV))
-        dtype = im.dtype  # uint8
-
-        x = np.arange(0, 256, dtype=r.dtype)
-        lut_hue = ((x * r[0]) % 180).astype(dtype)
-        lut_sat = np.clip(x * r[1], 0, 255).astype(dtype)
-        lut_val = np.clip(x * r[2], 0, 255).astype(dtype)
-
-        im_hsv = cv2.merge((cv2.LUT(hue, lut_hue), cv2.LUT(sat, lut_sat), cv2.LUT(val, lut_val)))
-        cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=im)  # no return needed
-
-
-def letterbox(im, new_shape=(640, 640), color=(114, 114, 114), auto=True, scaleFill=False, scaleup=True, stride=32):
-    # Resize and pad image while meeting stride-multiple constraints
-    shape = im.shape[:2]  # current shape [height, width]
-    if isinstance(new_shape, int):
-        new_shape = (new_shape, new_shape)
-
-    # Scale ratio (new / old)
-    r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])
-    if not scaleup:  # only scale down, do not scale up (for better val mAP)
-        r = min(r, 1.0)
-
-    # Compute padding
-    ratio = r, r  # width, height ratios
-    new_unpad = int(round(shape[1] * r)), int(round(shape[0] * r))
-    dw, dh = new_shape[1] - new_unpad[0], new_shape[0] - new_unpad[1]  # wh padding
-    if auto:  # minimum rectangle
-        dw, dh = np.mod(dw, stride), np.mod(dh, stride)  # wh padding
-    elif scaleFill:  # stretch
-        dw, dh = 0.0, 0.0
-        new_unpad = (new_shape[1], new_shape[0])
-        ratio = new_shape[1] / shape[1], new_shape[0] / shape[0]  # width, height ratios
-
-    dw /= 2  # divide padding into 2 sides
-    dh /= 2
-
-    if shape[::-1] != new_unpad:  # resize
-        im = cv2.resize(im, new_unpad, interpolation=cv2.INTER_LINEAR)
-    top, bottom = int(round(dh - 0.1)), int(round(dh + 0.1))
-    left, right = int(round(dw - 0.1)), int(round(dw + 0.1))
-    im = cv2.copyMakeBorder(im, top, bottom, left, right, cv2.BORDER_CONSTANT, value=color)  # add border
-    return im, ratio, (dw, dh)
-
-
-def mixup(images1, labels1, images2, labels2):
-    # Applies MixUp augmentation https://arxiv.org/pdf/1710.09412.pdf
-    r = np.random.beta(32.0, 32.0)  # mixup ratio, alpha=beta=32.0
-    images1 = (images1 * r + images2 * (1 - r)).astype(np.uint8)
-    labels1 = np.concatenate((labels1, labels2), 0)
-    return images1, labels1
-
-
-def xyxy2xywhn(x, w=640, h=640, clip=False, eps=0.0):
-    # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] normalized where xy1=top-left, xy2=bottom-right
-    if clip:
-        clip_coords(x, (h - eps, w - eps))  # warning: inplace clip
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
-    y[:, 0] = ((x[:, 0] + x[:, 2]) / 2) / w  # x center
-    y[:, 1] = ((x[:, 1] + x[:, 3]) / 2) / h  # y center
-    y[:, 2] = (x[:, 2] - x[:, 0]) / w  # width
-    y[:, 3] = (x[:, 3] - x[:, 1]) / h  # height
-    return y
-
-
-def xywhn2xyxy(x, w=640, h=640, padw=0, padh=0):
-    # Convert nx4 boxes from [x, y, w, h] normalized to [x1, y1, x2, y2] where xy1=top-left, xy2=bottom-right
-    y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
-    y[:, 0] = w * (x[:, 0] - x[:, 2] / 2) + padw  # top left x
-    y[:, 1] = h * (x[:, 1] - x[:, 3] / 2) + padh  # top left y
-    y[:, 2] = w * (x[:, 0] + x[:, 2] / 2) + padw  # bottom right x
-    y[:, 3] = h * (x[:, 1] + x[:, 3] / 2) + padh  # bottom right y
-    return y
