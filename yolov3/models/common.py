@@ -1,33 +1,28 @@
 import math
 from copy import deepcopy
-from typing import List
+from typing import List, Optional, Tuple, Union
 
 import torch
-from torch import nn, Tensor
+import torch.nn as nn
 
 
-def auto_pad(kernel_size, padding=None) -> int:
-    """Remain the size of the feature map the same after convolution operation
-    Args:
-        kernel_size (int): kernel size of convolution
-        padding (int, optional): padding size. Default: `None`
-    Returns:
-        padding: new padding size
-    """
+def auto_pad(kernel_size: Union[int, Tuple], padding: Optional[int] = None) -> int:
+    """Automatic padding to keep the size of feature map after convolution"""
     if padding is None:
         padding = kernel_size // 2 if isinstance(kernel_size, int) else [x // 2 for x in kernel_size]
     return padding
 
 
 class Conv(nn.Module):
-    # Standard convolution block
+    """Standard convolution block"""
+
     def __init__(
             self,
             in_channels: int,
             out_channels: int,
             kernel_size: int = 1,
             stride: int = 1,
-            padding=None,
+            padding: Optional[int] = None,
             groups: int = 1,
             act=True,
     ) -> None:
@@ -44,22 +39,23 @@ class Conv(nn.Module):
         self.bn = nn.BatchNorm2d(num_features=out_channels)
         self.act = nn.SiLU() if act is True else (act if isinstance(act, nn.Module) else nn.Identity())
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.bn(self.conv(x)))
 
-    def forward_fuse(self, x: Tensor) -> Tensor:
+    def forward_fuse(self, x: torch.Tensor) -> torch.Tensor:
         return self.act(self.conv(x))
 
 
 class Bottleneck(nn.Module):
-    # Standard Bottleneck
+    """Standard Bottleneck"""
+
     def __init__(
             self,
-            in_channels,
-            out_channels,
-            shortcut=True,
-            groups=1,
-            exp=0.5,
+            in_channels: int,
+            out_channels: int,
+            shortcut: bool = True,
+            groups: int = 1,
+            exp: float = 0.5,
     ) -> None:
         super().__init__()
         hidden_channels = int(out_channels * exp)  # hidden channels
@@ -78,23 +74,25 @@ class Bottleneck(nn.Module):
         )
         self.add = shortcut and in_channels == out_channels
 
-    def forward(self, x: torch.Tensor) -> torch.Tensor:
+    def forward(self, x: torch.torch.Tensor) -> torch.torch.Tensor:
         return x + self.conv2(self.conv1(x)) if self.add else self.conv2(self.conv1(x))
 
 
 class Concat(nn.Module):
-    # Concatenate a list of tensors along dimension
+    """Concatenate a list of tensors along dimension"""
+
     def __init__(self, dimension: int = 1) -> None:
         super().__init__()
         self.dim = dimension
 
-    def forward(self, x: List[Tensor]) -> Tensor:
+    def forward(self, x: List[torch.Tensor]) -> torch.Tensor:
         return torch.cat(x, self.dim)
 
 
 class SPP(nn.Module):
-    # Spatial Pyramid Pooling (SPP) layer
-    def __init__(self, in_channels, out_channels, k=(5, 9, 13)):
+    """Spatial Pyramid Pooling (SPP) layer"""
+
+    def __init__(self, in_channels: int, out_channels: int, k: Tuple[int, int, int] = (5, 9, 13)) -> None:
         super().__init__()
         hidden_channels = in_channels // 2  # hidden channels
         self.conv1 = Conv(
@@ -111,7 +109,7 @@ class SPP(nn.Module):
         )
         self.pools = nn.ModuleList([nn.MaxPool2d(kernel_size=x, stride=1, padding=x // 2) for x in k])
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
         x = self.conv1(x)
         return self.conv2(torch.cat([x] + [pool(x) for pool in self.pools], 1))
 
@@ -120,7 +118,7 @@ class Detect(nn.Module):
     stride = None  # strides computed during build
     onnx_dynamic = False  # ONNX export parameter
 
-    def __init__(self, nc=80, anchors=(), ch=(), inplace=True):  # detection layer
+    def __init__(self, nc=80, anchors=(), ch=()):  # detection layer
         super().__init__()
         self.nc = nc  # number of classes
         self.no = nc + 5  # number of outputs per anchor
@@ -130,7 +128,6 @@ class Detect(nn.Module):
         self.anchor_grid = [torch.zeros(1)] * self.nl  # init anchor grid
         self.register_buffer("anchors", torch.tensor(anchors).float().view(self.nl, -1, 2))  # shape(nl,na,2)
         self.m = nn.ModuleList(nn.Conv2d(x, self.no * self.na, 1) for x in ch)  # output conv
-        self.inplace = True
 
     def forward(self, x):
         z = []  # inference output
@@ -174,8 +171,6 @@ def copy_attr(a, b, include=(), exclude=()):
 
 
 class ModelEMA:
-    """Model Exponential Moving Average from https://github.com/rwightman/pytorch-image-models"""
-
     def __init__(self, model, decay=0.9999, updates=0) -> None:
         # Create EMA
         self.model = deepcopy(model.module if hasattr(model, "module") else model).eval()  # FP32 EMA
