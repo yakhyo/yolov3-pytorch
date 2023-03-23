@@ -5,19 +5,12 @@ import numpy as np
 import torch
 from tqdm import tqdm
 
+from yolov3.models import YOLOv3SPP
+
 from yolov3.utils import LOGGER
 from yolov3.utils.datasets import create_dataloader
-from yolov3.utils.general import (
-    check_img_size,
-    colorstr,
-    non_max_suppression,
-    scale_boxes,
-    xywh2xyxy,
-)
-from yolov3.utils.metrics import box_iou
-from yolov3.utils.metrics import ap_per_class
-
-from yolov3.models import YOLOv3SPP
+from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy
+from yolov3.utils.metrics import ap_per_class, box_iou
 
 
 def process_batch(detections, labels, iouv):
@@ -47,20 +40,20 @@ def process_batch(detections, labels, iouv):
 
 @torch.no_grad()
 def run(
-        data,
-        weights=None,  # model.pt path(s)
-        batch_size=32,  # batch size
-        imgsz=640,  # inference size (pixels)
-        conf_thres=0.001,  # confidence threshold
-        iou_thres=0.6,  # NMS IoU threshold
-        task="val",  # train, val, test, speed or study
-        device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        augment=False,  # augmented inference
-        verbose=False,  # verbose output
-        half=True,  # use FP16 half-precision inference
-        model=None,
-        dataloader=None,
-        compute_loss=None,
+    data,
+    weights=None,  # model.pt path(s)
+    batch_size=32,  # batch size
+    imgsz=640,  # inference size (pixels)
+    conf_thres=0.001,  # confidence threshold
+    iou_thres=0.6,  # NMS IoU threshold
+    task="val",  # train, val, test, speed or study
+    device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+    augment=False,  # augmented inference
+    verbose=False,  # verbose output
+    half=True,  # use FP16 half-precision inference
+    model=None,
+    dataloader=None,
+    compute_loss=None,
 ):
     # Initialize/load model and set device
     training = model is not None

@@ -29,15 +29,7 @@ def augment_hsv(im, hgain=0.5, sgain=0.5, vgain=0.5):
         cv2.cvtColor(im_hsv, cv2.COLOR_HSV2BGR, dst=im)  # no return needed
 
 
-def letterbox(
-        image,
-        new_shape=(640, 640),
-        color=(114, 114, 114),
-        auto=True,
-        scale_fill=False,
-        scaleup=True,
-        stride=32
-):
+def letterbox(image, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale_fill=False, scaleup=True, stride=32):
     # Resize and pad image while meeting stride-multiple constraints
     shape = image.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
@@ -111,10 +103,10 @@ def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  #
 
 
 def random_perspective(
-        image,
-        targets,
-        params,
-        border=(0, 0),
+    image,
+    targets,
+    params,
+    border=(0, 0),
 ):
     # targets = [cls, xyxy]
     height = image.shape[0] + border[0] * 2  # shape(h,w,c)
@@ -143,10 +135,12 @@ def random_perspective(
 
     # Translation
     translation = np.eye(3)
-    translation[0, 2] = random.uniform(0.5 - params["translate"],
-                                       0.5 + params["translate"]) * width  # x translation (pixels)
-    translation[1, 2] = random.uniform(0.5 - params["translate"],
-                                       0.5 + params["translate"]) * height  # y translation (pixels)
+    translation[0, 2] = (
+        random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * width
+    )  # x translation (pixels)
+    translation[1, 2] = (
+        random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * height
+    )  # y translation (pixels)
 
     # Combined rotation matrix
     mix = translation @ shear @ rotate @ perspective @ center  # order of operations (right to left) is IMPORTANT
@@ -162,8 +156,9 @@ def random_perspective(
         xy = np.ones((n * 4, 3))
         xy[:, :2] = targets[:, [1, 2, 3, 4, 1, 4, 3, 2]].reshape(n * 4, 2)  # x1y1, x2y2, x1y2, x2y1
         xy = xy @ mix.T  # transform
-        xy = (xy[:, :2] / xy[:, 2:3] if params["perspective"] else xy[:, :2]).reshape(n,
-                                                                                      8)  # perspective rescale or affine
+        xy = (xy[:, :2] / xy[:, 2:3] if params["perspective"] else xy[:, :2]).reshape(
+            n, 8
+        )  # perspective rescale or affine
 
         # create new boxes
         x = xy[:, [0, 2, 4, 6]]

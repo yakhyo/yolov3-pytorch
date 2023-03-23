@@ -1,6 +1,6 @@
-from yolov3.utils.metrics import bbox_iou
 import torch
 import torch.nn as nn
+from yolov3.utils.metrics import bbox_iou
 
 
 def smooth_bce(eps=0.1):

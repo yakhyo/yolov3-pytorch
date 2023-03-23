@@ -22,14 +22,14 @@ def auto_pad(kernel_size, padding=None) -> int:
 class Conv(nn.Module):
     # Standard convolution block
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int = 1,
-        stride: int = 1,
-        padding=None,
-        groups: int = 1,
-        act=True,
+            self,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int = 1,
+            stride: int = 1,
+            padding=None,
+            groups: int = 1,
+            act=True,
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
@@ -54,12 +54,12 @@ class Conv(nn.Module):
 class Bottleneck(nn.Module):
     # Standard Bottleneck
     def __init__(
-        self,
-        in_channels,
-        out_channels,
-        shortcut=True,
-        groups=1,
-        exp=0.5,
+            self,
+            in_channels,
+            out_channels,
+            shortcut=True,
+            groups=1,
+            exp=0.5,
     ) -> None:
         super().__init__()
         hidden_channels = int(out_channels * exp)  # hidden channels

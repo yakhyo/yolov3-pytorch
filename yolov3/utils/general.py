@@ -14,8 +14,8 @@ from pathlib import Path
 import numpy as np
 import torch
 import torch.nn as nn
-from yolov3.utils import LOGGER
 import torchvision
+from yolov3.utils import LOGGER
 
 # Settings
 torch.set_printoptions(linewidth=320, precision=5, profile="long")
@@ -107,13 +107,7 @@ def clip_coords(boxes, shape):
 
 
 def non_max_suppression(
-        prediction,
-        conf_thres=0.25,
-        iou_thres=0.45,
-        classes=None,
-        agnostic=False,
-        multi_label=False,
-        max_det=300
+    prediction, conf_thres=0.25, iou_thres=0.45, classes=None, agnostic=False, multi_label=False, max_det=300
 ):
     # Checks
     assert 0 <= conf_thres <= 1, f"Invalid Confidence threshold {conf_thres}, valid values are between 0.0 and 1.0"
@@ -201,16 +195,16 @@ def smart_optimizer(model, name="Adam", lr=0.001, momentum=0.9, decay=1e-5):
         elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
             g[1].append(v.weight)
 
-    if name == 'Adam':
+    if name == "Adam":
         optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
-    elif name == 'AdamW':
+    elif name == "AdamW":
         optimizer = torch.optim.AdamW(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=decay)
-    elif name == 'RMSProp':
+    elif name == "RMSProp":
         optimizer = torch.optim.RMSprop(g[2], lr=lr, momentum=momentum)
-    elif name == 'SGD':
+    elif name == "SGD":
         optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
     else:
-        raise NotImplementedError(f'Optimizer {name} not implemented.')
+        raise NotImplementedError(f"Optimizer {name} not implemented.")
 
     optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g[0] with weight_decay
     optimizer.add_param_group({"params": g[1], "decay": 0.0})  # add g[1] (biases)

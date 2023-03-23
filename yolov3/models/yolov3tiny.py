@@ -2,9 +2,9 @@ import math
 from typing import Tuple
 
 import torch
+from torch import nn, Tensor
 
 from yolov3.models.common import Concat, Conv, Detect
-from torch import nn, Tensor
 
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple

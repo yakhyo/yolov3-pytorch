@@ -12,13 +12,14 @@ import numpy as np
 
 import torch
 from PIL import Image
-# from torch.utils.data import DataLoader, Dataset, distributed
-from tqdm import tqdm
 from torch.utils import data
 
+# from torch.utils.data import DataLoader, Dataset, distributed
+from tqdm import tqdm
+
 from yolov3.utils import LOGGER
+from yolov3.utils.augmentations import augment_hsv, letterbox, mixup, random_perspective, xywhn2xyxy, xyxy2xywhn
 from yolov3.utils.misc import torch_distributed_zero_first
-from yolov3.utils.augmentations import random_perspective, mixup, letterbox, xywhn2xyxy, xyxy2xywhn, augment_hsv
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]
@@ -26,16 +27,16 @@ WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
 
 
 def create_dataloader(
-        path,
-        image_size,
-        batch_size,
-        stride,
-        hyp=None,
-        augment=False,
-        rank=-1,
-        workers=16,
-        prefix="",
-        shuffle=False,
+    path,
+    image_size,
+    batch_size,
+    stride,
+    hyp=None,
+    augment=False,
+    rank=-1,
+    workers=16,
+    prefix="",
+    shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(

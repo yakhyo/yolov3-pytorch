@@ -17,16 +17,15 @@ import torch.distributed as dist
 import torch.nn as nn
 import val  # for end-of-epoch mAP
 import yaml
+from tqdm import tqdm
 
 from yolov3.models import YOLOv3SPP
 from yolov3.models.common import ModelEMA
-from tqdm import tqdm
 from yolov3.utils import LOGGER
 from yolov3.utils.datasets import create_dataloader
-from yolov3.utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
+from yolov3.utils.general import check_img_size, colorstr, init_seeds, smart_optimizer, strip_optimizer
 from yolov3.utils.loss import ComputeLoss
 from yolov3.utils.metrics import fitness
-from yolov3.utils.general import smart_optimizer
 from yolov3.utils.misc import check_anchors, torch_distributed_zero_first
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
@@ -112,12 +111,13 @@ def train(hyp, opt, device):
     hyp["weight_decay"] *= batch_size * accumulate / nbs  # scale weight_decay
     LOGGER.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
-    optimizer = smart_optimizer(model, opt.optimizer, hyp['lr0'], hyp['momentum'], hyp['weight_decay'])
+    optimizer = smart_optimizer(model, opt.optimizer, hyp["lr0"], hyp["momentum"], hyp["weight_decay"])
 
     # Scheduler
     lf = linear_lr(hyp, epochs) if opt.linear_lr else one_cycle(hyp, epochs)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer,
-                                                  lr_lambda=lf)  # plot_lr_scheduler(optimizer, scheduler, epochs)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer, lr_lambda=lf
+    )  # plot_lr_scheduler(optimizer, scheduler, epochs)
 
     # EMA
     ema = ModelEMA(model) if RANK in [-1, 0] else None
@@ -239,7 +239,12 @@ def train(hyp, opt, device):
             )  # progress bar
         optimizer.zero_grad()
         # batch -------------------------------------------------------------
-        for i, (imgs, targets, paths, _,) in pbar:
+        for i, (
+            imgs,
+            targets,
+            paths,
+            _,
+        ) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -287,7 +292,7 @@ def train(hyp, opt, device):
         if RANK in [-1, 0]:
             # mAP
             ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride"])
-            final_epoch = (epoch + 1 == epochs)
+            final_epoch = epoch + 1 == epochs
             if not noval or final_epoch:  # Calculate mAP
                 results, maps = val.run(
                     data_dict,
@@ -357,7 +362,7 @@ def parse_opt(known=False):
     parser.add_argument("--noautoanchor", action="store_true", help="disable autoanchor check")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help='--cache images in "ram" (default) or "disk"')
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument('--optimizer', type=str, choices=['SGD', 'Adam', 'AdamW'], default='SGD', help='optimizer')
+    parser.add_argument("--optimizer", type=str, choices=["SGD", "Adam", "AdamW"], default="SGD", help="optimizer")
     parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
     parser.add_argument("--workers", type=int, default=16, help="max dataloader workers (per RANK in DDP mode)")
     parser.add_argument("--name", default="exp", help="save to project/name")

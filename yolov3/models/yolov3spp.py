@@ -2,9 +2,9 @@ import math
 from typing import List, Type
 
 import torch
+from torch import nn, Tensor
 
 from yolov3.models.common import Bottleneck, Concat, Conv, Detect, SPP
-from torch import nn, Tensor
 
 # Parameters
 nc = 80  # number of classes
