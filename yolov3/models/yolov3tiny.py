@@ -9,10 +9,7 @@ from yolov3.models.common import Concat, Conv, Detect
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple
 width_multiple = 1.0  # layer channel multiple
-anchors = [
-    [10, 14, 23, 27, 37, 58],  # P4/16
-    [81, 82, 135, 169, 344, 319]  # P5/32
-]
+anchors = [[10, 14, 23, 27, 37, 58], [81, 82, 135, 169, 344, 319]]  # P4/16  # P5/32
 
 
 class TinyBackbone(nn.Module):
