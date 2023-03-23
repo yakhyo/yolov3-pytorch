@@ -2,21 +2,21 @@ import math
 from typing import Tuple
 
 import torch
-from torch import nn, Tensor
+import torch.nn as nn
 
 from yolov3.models.common import Concat, Conv, Detect
 
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple
 width_multiple = 1.0  # layer channel multiple
-anchors = [[10, 14, 23, 27, 37, 58], [81, 82, 135, 169, 344, 319]]  # P4/16  # P5/32
+anchors = [
+    [10, 14, 23, 27, 37, 58],  # P4/16
+    [81, 82, 135, 169, 344, 319]  # P5/32
+]
 
 
 class TinyBackbone(nn.Module):
-    """YOLOv3 Tiny Backbone
-
-    This backbone is built by using YOLOv3 Tiny Backbone configuration from Ultralytics.
-    """
+    """YOLOv3 Tiny Backbone"""
 
     def __init__(self):
         super().__init__()
@@ -40,7 +40,7 @@ class TinyBackbone(nn.Module):
         self.b11 = nn.ZeroPad2d(padding=(0, 1, 0, 1))  # 11
         self.b12 = nn.MaxPool2d(kernel_size=2, stride=1, padding=0)  # 12
 
-    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: torch.Tensor) -> Tuple[torch.Tensor, torch.Tensor]:
         b0 = self.b0(x)
         b1 = self.b1(b0)
         b2 = self.b2(b1)
@@ -59,10 +59,7 @@ class TinyBackbone(nn.Module):
 
 
 class TinyHead(nn.Module):
-    """YOLOv3 Tiny Head
-
-    This TinyHead is built by using YOLOv3 Tiny Head configuration from Ultralytics.
-    """
+    """YOLOv3 Tiny Head"""
 
     def __init__(self):
         super().__init__()
@@ -75,7 +72,7 @@ class TinyHead(nn.Module):
         self.h18 = Concat(dimension=1)  # 18 cat backbone P4
         self.h19 = Conv(in_channels=384, out_channels=256, kernel_size=3, stride=1)  # 19 (P4/16-medium)
 
-    def forward(self, x: Tuple[Tensor, Tensor]) -> Tuple[Tensor, Tensor]:
+    def forward(self, x: Tuple[torch.Tensor, torch.Tensor]) -> Tuple[torch.Tensor, torch.Tensor]:
         b8, b12 = x
         h13 = self.h13(b12)
         h14 = self.h14(h13)
