@@ -21,16 +21,16 @@ WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
 
 
 def create_dataloader(
-    path,
-    image_size,
-    batch_size,
-    stride,
-    hyp=None,
-    augment=False,
-    rank=-1,
-    workers=16,
-    prefix="",
-    shuffle=False,
+        path,
+        image_size,
+        batch_size,
+        stride,
+        hyp=None,
+        augment=False,
+        rank=-1,
+        workers=16,
+        prefix="",
+        shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(
@@ -76,26 +76,14 @@ class LoadImagesAndLabels(torch.utils.data.Dataset):
         self.mosaic_border = [-image_size // 2, -image_size // 2]
         self.stride = stride
 
-        # try:
-        #     path = Path(path)
-        #     assert path.is_dir(), f"{prefix}{path} does not exist"
-        #     self.image_files = [os.path.join(path, x) for x in os.listdir(path) if x.split(".")[-1] in IMG_FORMATS]
-        #     assert self.image_files, f"{prefix}No images found"
-        # except Exception as e:
-        #     raise Exception(f"{prefix}Error loading data from {path}: {e}")
         try:
-            f = []  # image files
-            p = Path(path)  # os-agnostic
-            with open(p) as t:
-                t = t.read().strip().splitlines()
-                parent = str(p.parent) + os.sep
-                f += [x.replace("./", parent) if x.startswith("./") else x for x in t]  # local to global path
-            self.image_files = sorted(x.replace("/", os.sep) for x in f if x.split(".")[-1].lower() in IMG_FORMATS)
-            # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in IMG_FORMATS])  # pathlib
+            path = Path(path)
+            assert path.is_dir(), f"{prefix}{path} does not exist"
+            self.image_files = [os.path.join(path, x) for x in os.listdir(path) if x.split(".")[-1] in IMG_FORMATS]
             assert self.image_files, f"{prefix}No images found"
         except Exception as e:
             raise Exception(f"{prefix}Error loading data from {path}: {e}")
-        # Check cache
+
         self.label_files = image2label(self.image_files)  # labels
         cache_path = Path(self.label_files[0]).parent.with_suffix(".cache")
         try:
@@ -255,12 +243,12 @@ class LoadImagesAndLabels(torch.utils.data.Dataset):
     def load_image(self, idx):
         image = cv2.imread(self.image_files[idx])  # BGR
         assert image is not None, f"Image Not Found {self.image_files[idx]}"
-        h, w = image.shape[:2]  # orig hw
-        r = self.input_size / max(h, w)  # ratio
-        if r != 1:
-            interpolation_mode = cv2.INTER_AREA if (r < 1 and not self.augment) else cv2.INTER_LINEAR
-            image = cv2.resize(image, dsize=(int(w * r), int(h * r)), interpolation=interpolation_mode)
-        return image, (h, w), image.shape[:2]  # image, hw_original, hw_resized
+        height, width = image.shape[:2]  # orig hw
+        ratio = self.input_size / max(height, width)  # ratio
+        if ratio != 1:
+            interpolation_mode = cv2.INTER_AREA if (ratio < 1 and not self.augment) else cv2.INTER_LINEAR
+            image = cv2.resize(image, dsize=(int(width * ratio), int(height * ratio)), interpolation=interpolation_mode)
+        return image, (height, width), image.shape[:2]  # image, hw_original, hw_resized
 
     def load_mosaic(self, idx, hyp):
         #  4-mosaic loader. Loads 1 image + 3 random images into a 4-image mosaic
