@@ -7,13 +7,12 @@ import numpy as np
 
 import torch
 from PIL import Image
-from torch.utils import data
 
 from tqdm import tqdm
 
 from yolov3 import LOGGER
 from yolov3.utils.augmentations import augment_hsv, letterbox, mixup, random_perspective, xywhn2xyxy, xyxy2xywhn
-from yolov3.utils.misc import torch_distributed_zero_first
+from yolov3.utils.general import torch_distributed_zero_first
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]
@@ -21,16 +20,16 @@ WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
 
 
 def create_dataloader(
-        path,
-        image_size,
-        batch_size,
-        stride,
-        hyp=None,
-        augment=False,
-        rank=-1,
-        workers=16,
-        prefix="",
-        shuffle=False,
+    path,
+    image_size,
+    batch_size,
+    stride,
+    hyp=None,
+    augment=False,
+    rank=-1,
+    workers=16,
+    prefix="",
+    shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(

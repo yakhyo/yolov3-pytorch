@@ -2,12 +2,12 @@ import argparse
 from pathlib import Path
 
 import numpy as np
+
 import torch
 from tqdm import tqdm
 
-from yolov3.models import YOLOv3SPP
-
 from yolov3 import LOGGER
+from yolov3.models import YOLOv3SPP
 from yolov3.utils.datasets import create_dataloader
 from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy
 from yolov3.utils.metrics import ap_per_class, box_iou
@@ -110,7 +110,7 @@ def run(
     names = {k: v for k, v in enumerate(model.names if hasattr(model, "names") else model.module.names)}
 
     desc = ("%20s" + "%11s" * 6) % ("Class", "Images", "Labels", "P", "R", "mAP@.5", "mAP@.5:.95")
-    dt, p, r, f1, mp, mr, map50, map = ([0.0, 0.0, 0.0], 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0)
+    p, r, f1, mp, mr, map50, map = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
 
     loss = torch.zeros(3, device=device)
     jdict, stats, ap, ap_class = [], [], [], []

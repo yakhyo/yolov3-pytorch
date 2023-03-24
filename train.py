@@ -18,15 +18,23 @@ import torch.nn as nn
 import val  # for end-of-epoch mAP
 import yaml
 from tqdm import tqdm
-
-from yolov3.models import YOLOv3SPP
-from yolov3.models.common import ModelEMA
 from yolov3 import LOGGER
+
+from yolov3.models import YOLOv3SPP, YOLOv3Tiny
+from yolov3.models.common import ModelEMA
 from yolov3.utils.datasets import create_dataloader
-from yolov3.utils.general import check_img_size, colorstr, init_seeds, smart_optimizer, strip_optimizer
+
+from yolov3.utils.general import (
+    check_anchors,
+    check_img_size,
+    colorstr,
+    init_seeds,
+    smart_optimizer,
+    strip_optimizer,
+    torch_distributed_zero_first,
+)
 from yolov3.utils.loss import ComputeLoss
 from yolov3.utils.metrics import fitness
-from yolov3.utils.misc import check_anchors, torch_distributed_zero_first
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", -1))
@@ -93,7 +101,7 @@ def train(hyp, opt, device):
     assert len(names) == nc, f"{len(names)} names found for nc={nc} dataset in {data}"  # check
 
     # Model
-    model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
+    model = YOLOv3Tiny(in_ch=3, num_classes=nc).to(device)
     pretrained = opt.weight.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(opt.weight, map_location=device)

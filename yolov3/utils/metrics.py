@@ -129,7 +129,7 @@ def bbox_iou(box1, box2, eps=1e-7):
 
     # Intersection area
     inter = (torch.min(b1_x2, b2_x2) - torch.max(b1_x1, b2_x1)).clamp(0) * (
-            torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
+        torch.min(b1_y2, b2_y2) - torch.max(b1_y1, b2_y1)
     ).clamp(0)
 
     # Union Area
@@ -139,9 +139,9 @@ def bbox_iou(box1, box2, eps=1e-7):
     iou = inter / union
     cw = torch.max(b1_x2, b2_x2) - torch.min(b1_x1, b2_x1)  # convex (smallest enclosing box) width
     ch = torch.max(b1_y2, b2_y2) - torch.min(b1_y1, b2_y1)  # convex height
-    c2 = cw ** 2 + ch ** 2 + eps  # convex diagonal squared
+    c2 = cw**2 + ch**2 + eps  # convex diagonal squared
     rho2 = ((b2_x1 + b2_x2 - b1_x1 - b1_x2) ** 2 + (b2_y1 + b2_y2 - b1_y1 - b1_y2) ** 2) / 4  # center dist ** 2
-    v = (4 / math.pi ** 2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
+    v = (4 / math.pi**2) * torch.pow(torch.atan(w2 / h2) - torch.atan(w1 / h1), 2)
     with torch.no_grad():
         alpha = v / (v - iou + (1 + eps))
     return iou - (rho2 / c2 + v * alpha)  # CIoU
