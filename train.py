@@ -20,7 +20,7 @@ import yaml
 from tqdm import tqdm
 from yolov3 import LOGGER
 
-from yolov3.models import YOLOv3SPP, YOLOv3Tiny
+from yolov3.models import YOLOv3SPP, YOLOv3Tiny, YOLOv3
 from yolov3.models.common import ModelEMA
 from yolov3.utils.datasets import create_dataloader
 
@@ -101,7 +101,7 @@ def train(hyp, opt, device):
     assert len(names) == nc, f"{len(names)} names found for nc={nc} dataset in {data}"  # check
 
     # Model
-    model = YOLOv3Tiny(in_ch=3, num_classes=nc).to(device)
+    model = YOLOv3(in_ch=3, num_classes=nc).to(device)
     pretrained = opt.weight.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(opt.weight, map_location=device)

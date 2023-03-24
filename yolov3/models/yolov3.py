@@ -5,7 +5,7 @@ import torch
 import torch.nn as nn
 
 from yolov3.models.common import Bottleneck, Concat, Conv, Detect
-
+from yolov3.utils.general import make_divisible
 # Parameters
 nc = 80  # number of classes
 depth_multiple = 1.0  # model depth multiple
@@ -18,25 +18,25 @@ anchors = [
 
 
 class Backbone(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, filters: List[int], depths: List[int]) -> None:
         super().__init__()
 
-        self.b0 = Conv(in_channels=3, out_channels=32, kernel_size=3, stride=1)  # 0
+        self.b0 = Conv(in_channels=filters[0], out_channels=filters[1], kernel_size=3, stride=1)  # 0
 
-        self.b1 = Conv(in_channels=32, out_channels=64, kernel_size=3, stride=2)  # 1-P1/2
-        self.b2 = self._make_layers(Bottleneck, channels=64, num_blocks=1)  # 2
+        self.b1 = Conv(in_channels=filters[1], out_channels=filters[2], kernel_size=3, stride=2)  # 1-P1/2
+        self.b2 = self._make_layers(Bottleneck, channels=filters[2], num_blocks=depths[0])  # 2
 
-        self.b3 = Conv(in_channels=64, out_channels=128, kernel_size=3, stride=2)  # 3-P2/4
-        self.b4 = self._make_layers(Bottleneck, channels=128, num_blocks=2)  # 4
+        self.b3 = Conv(in_channels=filters[2], out_channels=filters[3], kernel_size=3, stride=2)  # 3-P2/4
+        self.b4 = self._make_layers(Bottleneck, channels=filters[3], num_blocks=depths[1])  # 4
 
-        self.b5 = Conv(in_channels=128, out_channels=256, kernel_size=3, stride=2)  # 5-P3/8
-        self.b6 = self._make_layers(Bottleneck, channels=256, num_blocks=8)  # 6
+        self.b5 = Conv(in_channels=filters[3], out_channels=filters[4], kernel_size=3, stride=2)  # 5-P3/8
+        self.b6 = self._make_layers(Bottleneck, channels=filters[4], num_blocks=depths[3])  # 6
 
-        self.b7 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=2)  # 7-P4/14
-        self.b8 = self._make_layers(Bottleneck, channels=512, num_blocks=8)  # 8
+        self.b7 = Conv(in_channels=filters[4], out_channels=filters[5], kernel_size=3, stride=2)  # 7-P4/14
+        self.b8 = self._make_layers(Bottleneck, channels=filters[5], num_blocks=depths[3])  # 8
 
-        self.b9 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=2)  # 9-P5/32
-        self.b10 = self._make_layers(Bottleneck, channels=1024, num_blocks=4)  # 10
+        self.b9 = Conv(in_channels=filters[5], out_channels=filters[6], kernel_size=3, stride=2)  # 9-P5/32
+        self.b10 = self._make_layers(Bottleneck, channels=filters[6], num_blocks=depths[2])  # 10
 
     @staticmethod
     def _make_layers(block: Type[Bottleneck], channels: int, num_blocks: int = 1) -> nn.Sequential:
@@ -65,31 +65,32 @@ class Backbone(nn.Module):
 
 
 class Head(nn.Module):
-    def __init__(self):
+
+    def __init__(self, filters: List[int]) -> None:
         super().__init__()
-        self.h11 = Bottleneck(in_channels=1024, out_channels=1024, shortcut=False)
-        self.h12 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
-        self.h13 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)
-        self.h14 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
-        self.h15 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)  # P5/32-large
+        self.h11 = Bottleneck(in_channels=filters[6], out_channels=filters[6], shortcut=False)
+        self.h12 = Conv(in_channels=filters[6], out_channels=filters[5], kernel_size=1, stride=1)
+        self.h13 = Conv(in_channels=filters[5], out_channels=filters[6], kernel_size=3, stride=1)
+        self.h14 = Conv(in_channels=filters[6], out_channels=filters[5], kernel_size=1, stride=1)
+        self.h15 = Conv(in_channels=filters[5], out_channels=filters[6], kernel_size=3, stride=1)  # P5/32-large
 
         # input of h16 is h14
-        self.h16 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
+        self.h16 = Conv(in_channels=filters[5], out_channels=filters[4], kernel_size=1, stride=1)
         self.h17 = nn.Upsample(None, scale_factor=2, mode="nearest")
         self.h18 = Concat()  # cat backbone P4
-        self.h19 = Bottleneck(in_channels=768, out_channels=512, shortcut=False)
-        self.h20 = Bottleneck(in_channels=512, out_channels=512, shortcut=False)
-        self.h21 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
-        self.h22 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=1)  # P4/16-medium
+        self.h19 = Bottleneck(in_channels=filters[5] + filters[4], out_channels=filters[5], shortcut=False)
+        self.h20 = Bottleneck(in_channels=filters[5], out_channels=filters[5], shortcut=False)
+        self.h21 = Conv(in_channels=filters[5], out_channels=filters[4], kernel_size=1, stride=1)
+        self.h22 = Conv(in_channels=filters[4], out_channels=filters[5], kernel_size=3, stride=1)  # P4/16-medium
 
         # inout of h23 is h21
-        self.h23 = Conv(in_channels=256, out_channels=128, kernel_size=1, stride=1)
+        self.h23 = Conv(in_channels=filters[4], out_channels=filters[3], kernel_size=1, stride=1)
         self.h24 = nn.Upsample(None, scale_factor=2, mode="nearest")
         self.h25 = Concat()  # cat backbone P3
-        self.h26 = Bottleneck(in_channels=384, out_channels=256, shortcut=False)
+        self.h26 = Bottleneck(in_channels=filters[4] + filters[3], out_channels=filters[4], shortcut=False)
         self.h27 = nn.Sequential(  # P3/8-small
-            Bottleneck(in_channels=256, out_channels=256, shortcut=False),
-            Bottleneck(in_channels=256, out_channels=256, shortcut=False),
+            Bottleneck(in_channels=filters[4], out_channels=filters[4], shortcut=False),
+            Bottleneck(in_channels=filters[4], out_channels=filters[4], shortcut=False),
         )
 
     def forward(self, x: List[torch.Tensor]) -> List[torch.Tensor]:
@@ -120,8 +121,12 @@ class Head(nn.Module):
 class YOLOv3(nn.Module):
     def __init__(self, in_ch=3, num_classes=80, anchors=anchors):
         super().__init__()
-        self.backbone = Backbone()
-        self.head = Head()
+        _filters = [3, 32, 64, 128, 256, 512, 1024]
+        _depths = [1, 2, 4, 8]
+        # _depths = [max(round(n * depth_multiple), 1) for n in _depths]
+        # _filters = [3, *[make_divisible(c * width_multiple, 8) for c in _filters[1:]]]
+        self.backbone = Backbone(filters=_filters, depths=_depths)
+        self.head = Head(filters=_filters)
 
         self.detect = Detect(anchors=anchors, nc=num_classes, ch=(256, 512, 1024))
 
