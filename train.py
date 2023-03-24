@@ -8,9 +8,7 @@ Usage:
 import argparse
 import math
 import os
-import time
 from copy import deepcopy
-from datetime import datetime
 from pathlib import Path
 
 import numpy as np
@@ -19,22 +17,24 @@ import torch.distributed as dist
 import torch.nn as nn
 import val  # for end-of-epoch mAP
 import yaml
-
-from nets import YOLOv3SPP, YOLOv3Tiny
-from nets.common import ModelEMA
-from torch.cuda import amp
-from torch.nn.parallel import DistributedDataParallel as DDP
-from torch.optim import Adam, lr_scheduler, SGD
 from tqdm import tqdm
-from utils import LOGGER
-from utils.datasets import create_dataloader
-from utils.general import check_img_size, colorstr, init_seeds, strip_optimizer
-from utils.loss import ComputeLoss
-from utils.metrics import fitness
+from yolov3 import LOGGER
 
-from utils.misc import check_anchors, EarlyStopping, torch_distributed_zero_first
+from yolov3.models import YOLOv3SPP, YOLOv3Tiny
+from yolov3.models.common import ModelEMA
+from yolov3.utils.datasets import create_dataloader
 
-FILE = Path(__file__).resolve()
+from yolov3.utils.general import (
+    check_anchors,
+    check_img_size,
+    colorstr,
+    init_seeds,
+    smart_optimizer,
+    strip_optimizer,
+    torch_distributed_zero_first,
+)
+from yolov3.utils.loss import ComputeLoss
+from yolov3.utils.metrics import fitness
 
 LOCAL_RANK = int(os.getenv("LOCAL_RANK", -1))  # https://pytorch.org/docs/stable/elastic/run.html
 RANK = int(os.getenv("RANK", -1))
@@ -57,11 +57,9 @@ def linear_lr(hyp, epochs):
 
 def train(hyp, opt, device):
     # path/to/hyp.yaml or hyp dictionary
-    save_dir, epochs, batch_size, weights, data, resume, noval, nosave, workers = (
-        opt.save_dir,
+    epochs, batch_size, data, resume, noval, nosave, workers = (
         opt.epochs,
         opt.batch_size,
-        opt.weights,
         opt.data,
         opt.resume,
         opt.noval,
@@ -70,7 +68,7 @@ def train(hyp, opt, device):
     )
 
     # Directories
-    w = "weights/weights"  # weights dir
+    w = "weights"  # weights dir
     os.makedirs(w, exist_ok=True)
     last, best = f"{w}/last.pt", f"{w}/best.pt"
 
@@ -78,12 +76,6 @@ def train(hyp, opt, device):
     with open(hyp, errors="ignore") as f:
         hyp = yaml.safe_load(f)
     LOGGER.info(colorstr("hyperparameters: ") + ", ".join(f"{param}={value}" for param, value in hyp.items()))
-
-    # Save run settings
-    with open("weights/hyp.yaml", "w") as f:
-        yaml.safe_dump(hyp, f, sort_keys=False)
-    with open("weights/opt.yaml", "w") as f:
-        yaml.safe_dump(vars(opt), f, sort_keys=False)
 
     # Config
     cuda = device.type != "cpu"
@@ -107,16 +99,15 @@ def train(hyp, opt, device):
     names = data_dict["names"]  # class names
 
     assert len(names) == nc, f"{len(names)} names found for nc={nc} dataset in {data}"  # check
-    is_coco = isinstance(val_path, str) and val_path.endswith("coco/val2017.txt")  # COCO dataset
 
     # Model
-    model = YOLOv3SPP(in_ch=3, num_classes=nc).to(device)
-    pretrained = weights.endswith(".pt")
+    model = YOLOv3Tiny(in_ch=3, num_classes=nc).to(device)
+    pretrained = opt.weight.endswith(".pt")
     if pretrained:
-        checkpoint = torch.load(weights, map_location=device)
+        checkpoint = torch.load(opt.weight, map_location=device)
         state_dict = checkpoint["model"].float().state_dict()
         model.load_state_dict(state_dict, strict=False)
-        LOGGER.info(f"Transferred {len(state_dict)}/{len(model.state_dict())} items from {weights}")  # report
+        LOGGER.info(f"Transferred {len(state_dict)}/{len(model.state_dict())} items from {opt.weight}")  # report
 
     # Image size
     grid_size = max(int(model.detect.stride.max()), 32)  # grid size (max stride)
@@ -128,32 +119,13 @@ def train(hyp, opt, device):
     hyp["weight_decay"] *= batch_size * accumulate / nbs  # scale weight_decay
     LOGGER.info(f"Scaled weight_decay = {hyp['weight_decay']}")
 
-    g0, g1, g2 = [], [], []  # optimizer parameter groups
-    for v in model.modules():
-        if hasattr(v, "bias") and isinstance(v.bias, nn.Parameter):
-            g2.append(v.bias)
-        if isinstance(v, nn.BatchNorm2d):
-            g0.append(v.weight)
-        elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
-            g1.append(v.weight)
-
-    if opt.adam:
-        optimizer = Adam(g0, lr=hyp["lr0"], betas=(hyp["momentum"], 0.999))  # adjust beta1 to momentum
-    else:
-        optimizer = SGD(g0, lr=hyp["lr0"], momentum=hyp["momentum"], nesterov=True)
-
-    optimizer.add_param_group({"params": g1, "weight_decay": hyp["weight_decay"]})  # add g1 with weight_decay
-    optimizer.add_param_group({"params": g2})  # add g2 (biases)
-
-    LOGGER.info(
-        f"{colorstr('optimizer:')} {type(optimizer).__name__} with parameter groups "
-        f"{len(g0)} weight, {len(g1)} weight (no decay), {len(g2)} bias"
-    )
-    del g0, g1, g2
+    optimizer = smart_optimizer(model, opt.optimizer, hyp["lr0"], hyp["momentum"], hyp["weight_decay"])
 
     # Scheduler
     lf = linear_lr(hyp, epochs) if opt.linear_lr else one_cycle(hyp, epochs)
-    scheduler = lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)  # plot_lr_scheduler(optimizer, scheduler, epochs)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(
+        optimizer, lr_lambda=lf
+    )  # plot_lr_scheduler(optimizer, scheduler, epochs)
 
     # EMA
     ema = ModelEMA(model) if RANK in [-1, 0] else None
@@ -167,17 +139,17 @@ def train(hyp, opt, device):
             best_fitness = checkpoint["best_fitness"]
 
         # EMA
-        if ema and checkpoint.get("model"):
+        if checkpoint.get("model"):
             ema.model.load_state_dict(checkpoint["model"].float().state_dict())
             ema.updates = checkpoint["updates"]
 
         # Epochs
         start_epoch = checkpoint["epoch"] + 1
         if resume:
-            assert start_epoch > 0, f"{weights} training to {epochs} epochs is finished, nothing to resume."
+            assert start_epoch > 0, f"{opt.weight} training to {epochs} epochs is finished, nothing to resume."
         if epochs < start_epoch:
             LOGGER.info(
-                f"{weights} has been trained for {checkpoint['epoch']} epochs. Fine-tuning for {epochs} more epochs."
+                f"{opt.weight} has been trained for {checkpoint['epoch']} epochs. Fine-tuning for {epochs} more epochs."
             )
             epochs += checkpoint["epoch"]  # finetune additional epochs
         del checkpoint
@@ -230,13 +202,12 @@ def train(hyp, opt, device):
 
     # DDP mode
     if cuda and RANK != -1:
-        print("DDP")
-        model = DDP(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK)
+        model = nn.parallel.DistributedDataParallel(model, device_ids=[LOCAL_RANK], output_device=LOCAL_RANK)
 
     # Model parameters
     nl = model.module.detect.nl if hasattr(model, "module") else model.detect.nl  # number of detection layers
     hyp["box"] *= 3 / nl  # scale to layers
-    hyp["cls"] *= nc / 80 * 3 / nl  # scale to classes and layers
+    hyp["cls"] *= nc / len(names) * 3 / nl  # scale to classes and layers
     hyp["obj"] *= (image_size / 640) ** 2 * 3 / nl  # scale to image size and layers
 
     model.nc = nc  # attach number of classes to model
@@ -244,20 +215,18 @@ def train(hyp, opt, device):
     model.names = names  # attach class names to model
 
     # Start training
-    t0 = time.time()
     num_warmup_iters = max(round(hyp["warmup_epochs"] * nb), 1000)  # number of warmup iters, max(3 epochs, 1k iters)
     last_opt_step = -1
 
     results = (0, 0, 0, 0, 0, 0, 0)  # P, R, mAP@.5, mAP@.5-.95, val_loss(box, obj, cls)
     scheduler.last_epoch = start_epoch - 1  # do not move
-    scaler = amp.GradScaler(enabled=cuda)
-    stopper = EarlyStopping(patience=opt.patience)
+    scaler = torch.cuda.amp.GradScaler(enabled=cuda)
     compute_loss = ComputeLoss(model)  # init loss class
 
     LOGGER.info(
         f"Image sizes {image_size} train, {image_size} val\n"
         f"Using {train_loader.num_workers * WORLD_SIZE} dataloader workers\n"
-        f"Logging results to {colorstr(save_dir)}\n"
+        f"Logging results to {colorstr(opt.save_dir)}\n"
         f"Starting training for {epochs} epochs..."
     )
     # epoch ------------------------------------------------------------------
@@ -278,7 +247,12 @@ def train(hyp, opt, device):
             )  # progress bar
         optimizer.zero_grad()
         # batch -------------------------------------------------------------
-        for i, (imgs, targets, paths, _,) in pbar:
+        for i, (
+            imgs,
+            targets,
+            paths,
+            _,
+        ) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
 
@@ -292,7 +266,7 @@ def train(hyp, opt, device):
                         x["momentum"] = np.interp(ni, xi, [hyp["warmup_momentum"], hyp["momentum"]])
 
             # Forward
-            with amp.autocast(enabled=cuda):
+            with torch.cuda.amp.autocast(enabled=cuda):
                 pred = model(imgs)  # forward
                 loss, loss_items = compute_loss(pred, targets.to(device))  # loss scaled by batch_size
                 if RANK != -1:
@@ -326,16 +300,14 @@ def train(hyp, opt, device):
         if RANK in [-1, 0]:
             # mAP
             ema.update_attr(model, include=["yaml", "nc", "hyp", "names", "stride"])
-            final_epoch = (epoch + 1 == epochs) or stopper.possible_stop
+            final_epoch = epoch + 1 == epochs
             if not noval or final_epoch:  # Calculate mAP
-                results, maps, _ = val.run(
+                results, maps = val.run(
                     data_dict,
                     batch_size=batch_size // WORLD_SIZE * 2,
                     imgsz=image_size,
                     model=ema.model,
                     dataloader=val_loader,
-                    save_dir=save_dir,
-                    plots=False,
                     compute_loss=compute_loss,
                 )
 
@@ -357,47 +329,27 @@ def train(hyp, opt, device):
                 }
 
                 # Save last, best and delete
-                torch.save(checkpoint, "./weights/weights/last.pt")
+                torch.save(checkpoint, last)
                 if best_fitness == fi:
-                    torch.save(checkpoint, "./weights/weights/best.pt")
+                    torch.save(checkpoint, best)
 
                 del checkpoint
 
             # Stop Single-GPU
-            if RANK == -1 and stopper(epoch=epoch, fitness=fi):
+            if RANK == -1:
                 break
 
         # end epoch ----------------------------------------------------------------------------------------------------
     # end training -----------------------------------------------------------------------------------------------------
     if RANK in [-1, 0]:
-        LOGGER.info(f"\n{epochs - start_epoch + 1} epochs completed in {(time.time() - t0) / 3600:.3f} hours.")
-        for f in last, best:
-            if os.path.exists(f):
-                strip_optimizer(f)  # strip optimizers
-                if f is best:
-                    LOGGER.info(f"\nValidating {f}...")
-                    results, _, _ = val.run(
-                        data_dict,
-                        batch_size=batch_size // WORLD_SIZE * 2,
-                        imgsz=image_size,
-                        model=attempt_load(f, device).half(),
-                        iou_thres=0.65 if is_coco else 0.60,  # best pycocotools results at 0.65
-                        dataloader=val_loader,
-                        save_dir=save_dir,
-                        save_json=is_coco,
-                        verbose=True,
-                        plots=True,
-                        compute_loss=compute_loss,
-                    )  # val best model with plots
-
-        LOGGER.info(f"Results saved to {colorstr(save_dir)}")
+        strip_optimizer(best)  # strip optimizers
+        strip_optimizer(last)
 
     torch.cuda.empty_cache()
     return results
 
 
 def attempt_load(weights, map_location=None):
-    # Loads an ensemble of nets weights=[a,b,c] or a single model weights=[a] or weights=a
     ckpt = torch.load(weights, map_location=map_location)  # load
 
     return ckpt["model"].float().eval()  # return model
@@ -405,7 +357,7 @@ def attempt_load(weights, map_location=None):
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weights", type=str, default="./weights/weights/last.pt", help="initial weights path")
+    parser.add_argument("--weight", type=str, default="./weights/last.pt", help="initial weights path")
     parser.add_argument("--cfg", type=str, default="", help="model.yaml path")
     parser.add_argument("--data", type=str, default="./data/coco.yaml", help="dataset.yaml path")
     parser.add_argument("--hyp", type=str, default="./configs/hyp.scratch.yaml", help="hyperparameters path")
@@ -418,7 +370,7 @@ def parse_opt(known=False):
     parser.add_argument("--noautoanchor", action="store_true", help="disable autoanchor check")
     parser.add_argument("--cache", type=str, nargs="?", const="ram", help='--cache images in "ram" (default) or "disk"')
     parser.add_argument("--device", default="", help="cuda device, i.e. 0 or 0,1,2,3 or cpu")
-    parser.add_argument("--adam", action="store_true", help="use torch.optim.Adam() optimizer")
+    parser.add_argument("--optimizer", type=str, choices=["SGD", "Adam", "AdamW"], default="SGD", help="optimizer")
     parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
     parser.add_argument("--workers", type=int, default=16, help="max dataloader workers (per RANK in DDP mode)")
     parser.add_argument("--name", default="exp", help="save to project/name")
@@ -435,9 +387,9 @@ def parse_opt(known=False):
 def main(opt):
     # Checks
     if RANK in [-1, 0]:
-        LOGGER.info(colorstr(f"{FILE.stem}: ") + ", ".join(f"{k}={v}" for k, v in vars(opt).items()))
+        LOGGER.info(colorstr("train: ") + ", ".join(f"{k}={v}" for k, v in vars(opt).items()))
 
-    opt.weights = str(opt.weights)  # checks
+    opt.weight = str(opt.weight)  # checks
 
     opt.save_dir = "weights"
 
@@ -458,7 +410,7 @@ def main(opt):
 
 
 def run(**kwargs):
-    # Usage: import train; train.run(data='coco128.yaml', image_size=320, weights='yolov3.pt')
+    # Usage: import train; train.run(data='coco128.yaml', image_size=320, weight='yolov3.pt')
     opt = parse_opt(True)
     for k, v in kwargs.items():
         setattr(opt, k, v)

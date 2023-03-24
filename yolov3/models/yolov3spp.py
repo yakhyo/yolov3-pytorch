@@ -2,9 +2,9 @@ import math
 from typing import List, Type
 
 import torch
+import torch.nn as nn
 
-from nets.common import Bottleneck, Concat, Conv, Detect, SPP
-from torch import nn, Tensor
+from yolov3.models.common import Bottleneck, Concat, Conv, Detect, SPP
 
 # Parameters
 nc = 80  # number of classes
@@ -43,7 +43,7 @@ class Backbone(nn.Module):
         layers = [block(channels, channels) for _ in range(num_blocks)]
         return nn.Sequential(*layers)
 
-    def forward(self, x: Tensor) -> List[Tensor]:
+    def forward(self, x: torch.Tensor) -> List[torch.Tensor]:
         b0 = self.b0(x)
         b1 = self.b1(b0)
 
@@ -92,7 +92,7 @@ class HeadSPP(nn.Module):
             Bottleneck(in_channels=256, out_channels=256, shortcut=False),
         )
 
-    def forward(self, x: List[Tensor]) -> List[Tensor]:
+    def forward(self, x: List[torch.Tensor]) -> List[torch.Tensor]:
         b6, b8, b10 = x
         h11 = self.h11(b10)
         h12 = self.h12(h11)

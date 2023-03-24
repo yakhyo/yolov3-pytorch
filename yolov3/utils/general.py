@@ -1,29 +1,16 @@
-# YOLOv3 🚀 by Ultralytics, GPL-3.0 license
-"""
-General utils
-"""
-
-import glob
 import math
 import os
 import random
-import re
 import time
-from pathlib import Path
+
+from contextlib import contextmanager
 
 import numpy as np
 import torch
+import torch.nn as nn
 import torchvision
-
-from utils.metrics import box_iou
-
-# Settings
-torch.set_printoptions(linewidth=320, precision=5, profile="long")
-np.set_printoptions(linewidth=320, formatter={"float_kind": "{:11.5g}".format})  # format short g, %precision=5
-os.environ["NUMEXPR_MAX_THREADS"] = str(min(os.cpu_count(), 8))  # NumExpr max threads
-
-FILE = Path(__file__).resolve()
-ROOT = FILE.parents[1]  # root directory
+from torch import distributed
+from yolov3 import LOGGER
 
 
 def init_seeds(seed=0):
@@ -61,93 +48,6 @@ def colorstr(text):
     return f'{colors["underline"] + colors["bold"] + colors["blue"] + str(text) + colors["end"]}'
 
 
-def coco80_to_coco91_class():
-    # converts 80-index (val2014) to 91-index (paper)
-    x = [
-        1,
-        2,
-        3,
-        4,
-        5,
-        6,
-        7,
-        8,
-        9,
-        10,
-        11,
-        13,
-        14,
-        15,
-        16,
-        17,
-        18,
-        19,
-        20,
-        21,
-        22,
-        23,
-        24,
-        25,
-        27,
-        28,
-        31,
-        32,
-        33,
-        34,
-        35,
-        36,
-        37,
-        38,
-        39,
-        40,
-        41,
-        42,
-        43,
-        44,
-        46,
-        47,
-        48,
-        49,
-        50,
-        51,
-        52,
-        53,
-        54,
-        55,
-        56,
-        57,
-        58,
-        59,
-        60,
-        61,
-        62,
-        63,
-        64,
-        65,
-        67,
-        70,
-        72,
-        73,
-        74,
-        75,
-        76,
-        77,
-        78,
-        79,
-        80,
-        81,
-        82,
-        84,
-        85,
-        86,
-        87,
-        88,
-        89,
-        90,
-    ]
-    return x
-
-
 def xyxy2xywh(x):
     # Convert nx4 boxes from [x1, y1, x2, y2] to [x, y, w, h] where xy1=top-left, xy2=bottom-right
     y = x.clone() if isinstance(x, torch.Tensor) else np.copy(x)
@@ -168,7 +68,7 @@ def xywh2xyxy(x):
     return y
 
 
-def scale_coords(img1_shape, coords, img0_shape, ratio_pad=None):
+def scale_boxes(img1_shape, coords, img0_shape, ratio_pad=None):
     # Rescale coords (xyxy) from img1_shape to img0_shape
     if ratio_pad is None:  # calculate from img0_shape
         gain = min(img1_shape[0] / img0_shape[0], img1_shape[1] / img0_shape[1])  # gain  = old / new
@@ -275,16 +175,65 @@ def strip_optimizer(f="best.pt"):
     print(f"Optimizer stripped from {f},{(' saved as %s,' % f)} {file_size:.1f}MB")
 
 
-def increment_path(path, exist_ok=False, sep="", mkdir=False):
-    # Increment file or directory path, i.e. runs/exp --> runs/exp{sep}2, runs/exp{sep}3, ... etc.
-    path = Path(path)  # os-agnostic
-    if path.exists() and not exist_ok:
-        path, suffix = (path.with_suffix(""), path.suffix) if path.is_file() else (path, "")
-        dirs = glob.glob(f"{path}{sep}*")  # similar paths
-        matches = [re.search(rf"%s{sep}(\d+)" % path.stem, d) for d in dirs]
-        i = [int(m.groups()[0]) for m in matches if m]  # indices
-        n = max(i) + 1 if i else 2  # increment number
-        path = Path(f"{path}{sep}{n}{suffix}")  # increment path
-    if mkdir:
-        path.mkdir(parents=True, exist_ok=True)  # make directory
-    return path
+def smart_optimizer(model, name="Adam", lr=0.001, momentum=0.9, decay=1e-5):
+    g = [], [], []  # optimizer parameter groups
+    for v in model.modules():
+        if hasattr(v, "bias") and isinstance(v.bias, nn.Parameter):
+            g[2].append(v.bias)
+        if isinstance(v, nn.BatchNorm2d):
+            g[0].append(v.weight)
+        elif hasattr(v, "weight") and isinstance(v.weight, nn.Parameter):
+            g[1].append(v.weight)
+
+    if name == "Adam":
+        optimizer = torch.optim.Adam(g[2], lr=lr, betas=(momentum, 0.999))  # adjust beta1 to momentum
+    elif name == "AdamW":
+        optimizer = torch.optim.AdamW(g[2], lr=lr, betas=(momentum, 0.999), weight_decay=decay)
+    elif name == "RMSProp":
+        optimizer = torch.optim.RMSprop(g[2], lr=lr, momentum=momentum)
+    elif name == "SGD":
+        optimizer = torch.optim.SGD(g[2], lr=lr, momentum=momentum, nesterov=True)
+    else:
+        raise NotImplementedError(f"Optimizer {name} not implemented.")
+
+    optimizer.add_param_group({"params": g[0], "weight_decay": decay})  # add g[0] with weight_decay
+    optimizer.add_param_group({"params": g[1], "decay": 0.0})  # add g[1] (biases)
+
+    LOGGER.info(
+        f"{colorstr('optimizer:')} {type(optimizer).__name__} with parameter groups "
+        f"{len(g[0])} weight(decay=0.0), {len(g[1])} weight(decay={decay}), {len(g[2])} bias"
+    )
+
+    return optimizer
+
+
+def check_anchors(dataset, model, thr=4.0, imgsz=640):
+    # Check anchor fit to data, recompute if necessary
+    m = model.module.model[-1] if hasattr(model, "module") else model.detect  # Detect()
+    shapes = imgsz * dataset.shapes / dataset.shapes.max(1, keepdims=True)
+    scale = np.random.uniform(0.9, 1.1, size=(shapes.shape[0], 1))  # augment scale
+    wh = torch.tensor(np.concatenate([l[:, 3:5] * s for s, l in zip(shapes * scale, dataset.labels)])).float()  # wh
+
+    def metric(k):  # compute metric
+        r = wh[:, None] / k[None]
+        x = torch.min(r, 1 / r).min(2)[0]  # ratio metric
+        best = x.max(1)[0]  # best_x
+        aat = (x > 1 / thr).float().sum(1).mean()  # anchors above threshold
+        bpr = (best > 1 / thr).float().mean()  # best possible recall
+        return bpr, aat
+
+    anchors = m.anchors.clone() * m.stride.to(m.anchors.device).view(-1, 1, 1)  # current anchors
+    bpr, aat = metric(anchors.cpu().view(-1, 2))
+    LOGGER.info(f"\n{colorstr('AutoAnchor: ')}{aat:.2f} anchors/target, {bpr:.3f} Best Possible Recall (BPR). ")
+
+
+@contextmanager
+def torch_distributed_zero_first(local_rank: int):
+    """
+    Decorator to make all processes in distributed training wait for each local_master to do something.
+    """
+    if local_rank not in [-1, 0]:
+        distributed.barrier(device_ids=[local_rank])
+    yield
+    if local_rank == 0:
+        distributed.barrier(device_ids=[0])
