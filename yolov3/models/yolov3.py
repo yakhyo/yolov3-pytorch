@@ -5,16 +5,6 @@ import torch
 import torch.nn as nn
 
 from yolov3.models.common import Bottleneck, Concat, Conv, Detect
-from yolov3.utils.general import make_divisible
-# Parameters
-nc = 80  # number of classes
-depth_multiple = 1.0  # model depth multiple
-width_multiple = 1.0  # layer channel multiple
-anchors = [
-    [10, 13, 16, 30, 33, 23],  # P3/8
-    [30, 61, 62, 45, 59, 119],  # P4/16
-    [116, 90, 156, 198, 373, 326],  # P5/32
-]
 
 
 class Backbone(nn.Module):
@@ -119,19 +109,20 @@ class Head(nn.Module):
 
 
 class YOLOv3(nn.Module):
-    def __init__(self, in_ch=3, num_classes=80, anchors=anchors):
+    def __init__(self, num_classes: int = 80):
         super().__init__()
         _filters = [3, 32, 64, 128, 256, 512, 1024]
         _depths = [1, 2, 4, 8]
-        # _depths = [max(round(n * depth_multiple), 1) for n in _depths]
-        # _filters = [3, *[make_divisible(c * width_multiple, 8) for c in _filters[1:]]]
+        # P3/8 -> P4/16 -> P5/32
+        _anchors = [[10, 13, 16, 30, 33, 23], [30, 61, 62, 45, 59, 119], [116, 90, 156, 198, 373, 326]]
+
         self.backbone = Backbone(filters=_filters, depths=_depths)
         self.head = Head(filters=_filters)
+        self.detect = Detect(anchors=_anchors, nc=num_classes, ch=(_filters[4], _filters[5], _filters[6]))
 
-        self.detect = Detect(anchors=anchors, nc=num_classes, ch=(256, 512, 1024))
-
-        self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, in_ch, 256, 256))])
+        self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, 3, 256, 256))])
         self.detect.anchors /= self.detect.stride.view(-1, 1, 1)
+
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
 
@@ -167,7 +158,7 @@ class YOLOv3(nn.Module):
 
 
 if __name__ == "__main__":
-    net = YOLOv3(anchors=anchors)
+    net = YOLOv3(num_classes=80)
     net.eval()
 
     img = torch.randn(1, 3, 640, 640)
