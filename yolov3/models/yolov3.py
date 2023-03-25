@@ -1,5 +1,5 @@
 import math
-from typing import List, Type
+from typing import Union, Tuple, List, Type
 
 import torch
 import torch.nn as nn
@@ -109,7 +109,7 @@ class Head(nn.Module):
 
 
 class YOLOv3(nn.Module):
-    def __init__(self, num_classes: int = 80):
+    def __init__(self, num_classes: int = 80) -> None:
         super().__init__()
         _filters = [3, 32, 64, 128, 256, 512, 1024]
         _depths = [1, 2, 4, 8]
@@ -126,7 +126,7 @@ class YOLOv3(nn.Module):
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         b6, b8, b10 = self.backbone(x)
         h27, h22, h15 = self.head([b6, b8, b10])
         return self.detect([h27, h22, h15])

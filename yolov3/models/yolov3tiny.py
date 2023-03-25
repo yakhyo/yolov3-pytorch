@@ -1,5 +1,5 @@
 import math
-from typing import Tuple, List
+from typing import Tuple, List, Union
 
 import torch
 import torch.nn as nn
@@ -81,10 +81,11 @@ class TinyHead(nn.Module):
 
 
 class YOLOv3Tiny(nn.Module):
-    def __init__(self, num_classes: int = 80):
+    def __init__(self, num_classes: int = 80) -> None:
         super().__init__()
         _filters = [3, 16, 32, 64, 128, 256, 512, 1024]
-        _anchors = [[10, 14, 23, 27, 37, 58], [81, 82, 135, 169, 344, 319]]  # P4/16  # P5/32
+        # P4/16 -> P5/32
+        _anchors = [[10, 14, 23, 27, 37, 58], [81, 82, 135, 169, 344, 319]]
 
         self.backbone = TinyBackbone(filters=_filters)
         self.head = TinyHead(filters=_filters)
@@ -96,7 +97,7 @@ class YOLOv3Tiny(nn.Module):
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
 
-    def forward(self, x):
+    def forward(self, x: torch.Tensor) -> Union[torch.Tensor, Tuple[torch.Tensor]]:
         b8, b12 = self.backbone(x)
         h19, h15 = self.head([b8, b12])
         return self.detect([h19, h15])
