@@ -1,10 +1,9 @@
-import math
-from typing import Union, Tuple, List, Type
+from typing import List, Tuple, Type, Union
 
 import torch
 import torch.nn as nn
 
-from yolov3.models.common import Bottleneck, Concat, Conv, Detect
+from yolov3.models.common import BaseModel, Bottleneck, Concat, Conv, Detect
 
 
 class Backbone(nn.Module):
@@ -55,7 +54,6 @@ class Backbone(nn.Module):
 
 
 class Head(nn.Module):
-
     def __init__(self, filters: List[int]) -> None:
         super().__init__()
         self.h11 = Bottleneck(in_channels=filters[6], out_channels=filters[6], shortcut=False)
@@ -108,7 +106,7 @@ class Head(nn.Module):
         return [h27, h22, h15]
 
 
-class YOLOv3(nn.Module):
+class YOLOv3(BaseModel):
     def __init__(self, num_classes: int = 80) -> None:
         super().__init__()
         _filters = [3, 32, 64, 128, 256, 512, 1024]
@@ -130,31 +128,6 @@ class YOLOv3(nn.Module):
         b6, b8, b10 = self.backbone(x)
         h27, h22, h15 = self.head([b6, b8, b10])
         return self.detect([h27, h22, h15])
-
-    @staticmethod
-    def _make_divisible(x, divisor):
-        # Returns nearest x divisible by divisor
-        if isinstance(divisor, torch.Tensor):
-            divisor = int(divisor.max())  # to int
-        return math.ceil(x / divisor) * divisor
-
-    @staticmethod
-    def _check_anchor_order(detect):
-        # Check anchor order against stride order for  Detect() module m, and correct if necessary
-        a = detect.anchors.prod(-1).view(-1)  # anchor area
-        da = a[-1] - a[0]  # delta a
-        ds = detect.stride[-1] - detect.stride[0]  # delta s
-        if da.sign() != ds.sign():  # same order
-            print("AutoAnchor: Reversing anchor order")
-            detect.anchors[:] = detect.anchors.flip(0)
-
-    @staticmethod
-    def _initialize_biases(detect):
-        for mi, s in zip(detect.m, detect.stride):  # from
-            b = mi.bias.view(detect.na, -1)  # conv.bias(255) to (3,85)
-            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
-            b.data[:, 5:] += math.log(0.6 / (detect.nc - 0.999999))  # cls
-            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
 
 
 if __name__ == "__main__":

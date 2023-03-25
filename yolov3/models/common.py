@@ -1,4 +1,7 @@
 import math
+import warnings
+
+from abc import ABC, abstractmethod
 from copy import deepcopy
 from typing import List, Optional, Tuple, Union
 
@@ -196,3 +199,35 @@ class ModelEMA:
     def update_attr(self, model, include=(), exclude=("process_group", "reducer")):
         # Update EMA attributes
         copy_attr(self.model, model, include, exclude)
+
+
+class BaseModel(nn.Module, ABC):
+    """Base Model for Inheritance"""
+
+    def __init__(self) -> None:
+        super().__init__()
+        if self.__class__ == BaseModel:
+            warnings.warn("Don't use BaseModel directly, please use YOLOv3, YOLOv3SPP or YOLOv3Tiny instead.")
+
+    @abstractmethod
+    def forward(self, x):
+        """Forward pass of the model"""
+        pass
+
+    @staticmethod
+    def _check_anchor_order(detect):
+        # Check anchor order against stride order for  Detect() module m, and correct if necessary
+        a = detect.anchors.prod(-1).view(-1)  # anchor area
+        da = a[-1] - a[0]  # delta a
+        ds = detect.stride[-1] - detect.stride[0]  # delta s
+        if da.sign() != ds.sign():  # same order
+            print("AutoAnchor: Reversing anchor order")
+            detect.anchors[:] = detect.anchors.flip(0)
+
+    @staticmethod
+    def _initialize_biases(detect):
+        for mi, s in zip(detect.m, detect.stride):  # from
+            b = mi.bias.view(detect.na, -1)  # conv.bias(255) to (3,85)
+            b.data[:, 4] += math.log(8 / (640 / s) ** 2)  # obj (8 objects per 640 image)
+            b.data[:, 5:] += math.log(0.6 / (detect.nc - 0.999999))  # cls
+            mi.bias = torch.nn.Parameter(b.view(-1), requires_grad=True)
