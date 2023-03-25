@@ -1,5 +1,5 @@
 import math
-from typing import Tuple, List, Union
+from typing import Union, Tuple, List
 
 import torch
 import torch.nn as nn

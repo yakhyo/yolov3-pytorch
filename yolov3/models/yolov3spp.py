@@ -57,29 +57,29 @@ class Backbone(nn.Module):
 class HeadSPP(nn.Module):
     def __init__(self, filters: List[int]) -> None:
         super().__init__()
-        self.h11 = Bottleneck(in_channels=filte, out_channels=1024, shortcut=False)
-        self.h12 = SPP(in_channels=1024, out_channels=512, k=(5, 9, 13))
-        self.h13 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)
-        self.h14 = Conv(in_channels=1024, out_channels=512, kernel_size=1, stride=1)
-        self.h15 = Conv(in_channels=512, out_channels=1024, kernel_size=3, stride=1)  # P5/32-large
+        self.h11 = Bottleneck(in_channels=filters[6], out_channels=filters[6], shortcut=False)
+        self.h12 = SPP(in_channels=filters[6], out_channels=filters[5], k=(5, 9, 13))
+        self.h13 = Conv(in_channels=filters[5], out_channels=filters[6], kernel_size=3, stride=1)
+        self.h14 = Conv(in_channels=filters[6], out_channels=filters[5], kernel_size=1, stride=1)
+        self.h15 = Conv(in_channels=filters[5], out_channels=filters[6], kernel_size=3, stride=1)  # P5/32-large
 
         # input of h16 is h14
-        self.h16 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
+        self.h16 = Conv(in_channels=filters[5], out_channels=filters[4], kernel_size=1, stride=1)
         self.h17 = nn.Upsample(None, scale_factor=2, mode="nearest")
         self.h18 = Concat()  # cat backbone P4
-        self.h19 = Bottleneck(in_channels=768, out_channels=512, shortcut=False)
-        self.h20 = Bottleneck(in_channels=512, out_channels=512, shortcut=False)
-        self.h21 = Conv(in_channels=512, out_channels=256, kernel_size=1, stride=1)
-        self.h22 = Conv(in_channels=256, out_channels=512, kernel_size=3, stride=1)  # P4/16-medium
+        self.h19 = Bottleneck(in_channels=filters[5] + filters[4], out_channels=filters[5], shortcut=False)
+        self.h20 = Bottleneck(in_channels=filters[5], out_channels=filters[5], shortcut=False)
+        self.h21 = Conv(in_channels=filters[5], out_channels=filters[4], kernel_size=1, stride=1)
+        self.h22 = Conv(in_channels=filters[4], out_channels=filters[5], kernel_size=3, stride=1)  # P4/16-medium
 
         # inout of h23 is h21
-        self.h23 = Conv(in_channels=256, out_channels=128, kernel_size=1, stride=1)
+        self.h23 = Conv(in_channels=filters[4], out_channels=filters[3], kernel_size=1, stride=1)
         self.h24 = nn.Upsample(None, scale_factor=2, mode="nearest")
         self.h25 = Concat()  # cat backbone P3
-        self.h26 = Bottleneck(in_channels=384, out_channels=256, shortcut=False)
+        self.h26 = Bottleneck(in_channels=filters[4] + filters[3], out_channels=filters[4], shortcut=False)
         self.h27 = nn.Sequential(  # P3/8-small
-            Bottleneck(in_channels=256, out_channels=256, shortcut=False),
-            Bottleneck(in_channels=256, out_channels=256, shortcut=False),
+            Bottleneck(in_channels=filters[4], out_channels=filters[4], shortcut=False),
+            Bottleneck(in_channels=filters[4], out_channels=filters[4], shortcut=False),
         )
 
     def forward(self, x: List[torch.Tensor]) -> List[torch.Tensor]:
@@ -108,7 +108,7 @@ class HeadSPP(nn.Module):
 
 
 class YOLOv3SPP(nn.Module):
-    def __init__(self, num_classes=80):
+    def __init__(self, num_classes: int = 80) -> None:
         super().__init__()
         _filters = [3, 32, 64, 128, 256, 512, 1024]
         _depths = [1, 2, 4, 8]
@@ -116,11 +116,12 @@ class YOLOv3SPP(nn.Module):
         _anchors = [[10, 13, 16, 30, 33, 23], [30, 61, 62, 45, 59, 119], [116, 90, 156, 198, 373, 326]]
 
         self.backbone = Backbone(filters=_filters, depths=_depths)
-        self.head = HeadSPP()
+        self.head = HeadSPP(filters=_filters)
         self.detect = Detect(anchors=_anchors, nc=num_classes, ch=(_filters[4], _filters[5], _filters[6]))
 
         self.detect.stride = torch.tensor([256 / x.shape[-2] for x in self.forward(torch.zeros(1, 3, 256, 256))])
         self.detect.anchors /= self.detect.stride.view(-1, 1, 1)
+
         self._check_anchor_order(self.detect)
         self._initialize_biases(self.detect)
 
