@@ -11,8 +11,15 @@ from PIL import Image
 from tqdm import tqdm
 
 from yolov3 import LOGGER
-from yolov3.utils.augmentations import augment_hsv, letterbox, mixup, random_perspective, xywhn2xyxy, xyxy2xywhn
-from yolov3.utils.general import torch_distributed_zero_first
+from yolov3.utils.general import (
+    augment_hsv,
+    letterbox,
+    mixup,
+    random_perspective,
+    torch_distributed_zero_first,
+    xywhn2xyxy,
+    xyxy2xywhn,
+)
 
 # Parameters
 IMG_FORMATS = ["jpg", "jpeg", "png"]

@@ -101,7 +101,7 @@ def train(hyp, opt, device):
     assert len(names) == nc, f"{len(names)} names found for nc={nc} dataset in {data}"  # check
 
     # Model
-    model = YOLOv3(in_ch=3, num_classes=nc).to(device)
+    model = YOLOv3Tiny(num_classes=nc).to(device)
     pretrained = opt.weight.endswith(".pt")
     if pretrained:
         checkpoint = torch.load(opt.weight, map_location=device)

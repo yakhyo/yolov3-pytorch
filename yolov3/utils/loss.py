@@ -10,7 +10,8 @@ def smooth_bce(eps=0.1):
 
 
 class ComputeLoss:
-    # Compute losses
+    """YOLO Loss: Calculates Regression, Classification, Confidence Losses"""
+
     def __init__(self, model):
         device = next(model.parameters()).device  # get model device
         h = model.hyp  # hyperparameters
