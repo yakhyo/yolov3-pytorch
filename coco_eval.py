@@ -1,4 +1,6 @@
 import argparse
+
+import json
 from pathlib import Path
 
 import numpy as np
@@ -8,11 +10,11 @@ from tqdm import tqdm
 
 from yolov3 import LOGGER
 from yolov3.models import YOLOv3SPP, YOLOv3Tiny
-from yolov3.utils.datasets import create_dataloader
+from yolov3.utils.dataset import create_dataloader
 from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy, xyxy2xywh
 from yolov3.utils.metrics import ap_per_class, box_iou
 
-import json
+
 def process_batch(detections, labels, iouv):
     """
     Return correct predictions matrix. Both sets of boxes are in (x1, y1, x2, y2) format.
@@ -44,11 +46,14 @@ def save_one_json(predn, jdict, path, class_map):
     box = xyxy2xywh(predn[:, :4])  # xywh
     box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
     for p, b in zip(predn.tolist(), box.tolist()):
-        jdict.append({
-            'image_id': image_id,
-            'category_id': class_map[int(p[5])],
-            'bbox': [round(x, 3) for x in b],
-            'score': round(p[4], 5)})
+        jdict.append(
+            {
+                "image_id": image_id,
+                "category_id": class_map[int(p[5])],
+                "bbox": [round(x, 3) for x in b],
+                "score": round(p[4], 5),
+            }
+        )
 
 
 def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
@@ -58,27 +63,105 @@ def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
     # x1 = [list(a[i] == b).index(True) + 1 for i in range(80)]  # darknet to coco
     # x2 = [list(b[i] == a).index(True) if any(b[i] == a) else None for i in range(91)]  # coco to darknet
     return [
-        1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 27, 28, 31, 32, 33, 34,
-        35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57, 58, 59, 60, 61, 62, 63,
-        64, 65, 67, 70, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82, 84, 85, 86, 87, 88, 89, 90]
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        28,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        70,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+    ]
 
 
 @torch.no_grad()
 def run(
-        data,
-        weights=None,  # model.pt path(s)
-        batch_size=32,  # batch size
-        imgsz=640,  # inference size (pixels)
-        conf_thres=0.001,  # confidence threshold
-        iou_thres=0.6,  # NMS IoU threshold
-        task="val",  # train, val, test, speed or study
-        device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
-        augment=False,  # augmented inference
-        verbose=False,  # verbose output
-        half=True,  # use FP16 half-precision inference
-        model=None,
-        dataloader=None,
-        compute_loss=None,
+    data,
+    weights=None,  # model.pt path(s)
+    batch_size=32,  # batch size
+    imgsz=640,  # inference size (pixels)
+    conf_thres=0.001,  # confidence threshold
+    iou_thres=0.6,  # NMS IoU threshold
+    task="val",  # train, val, test, speed or study
+    device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
+    augment=False,  # augmented inference
+    verbose=False,  # verbose output
+    half=True,  # use FP16 half-precision inference
+    model=None,
+    dataloader=None,
+    compute_loss=None,
 ):
     # Initialize/load model and set device
     training = model is not None
@@ -208,11 +291,11 @@ def run(
 
         # Save JSON
     if len(jdict):
-        w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ''  # weights
-        anno_json = str(Path('../datasets/coco/annotations/instances_val2017.json'))  # annotations
-        pred_json = str('./weights/_predictions.json')  # predictions
-        LOGGER.info(f'\nEvaluating pycocotools mAP... saving {pred_json}...')
-        with open(pred_json, 'w') as f:
+        w = Path(weights[0] if isinstance(weights, list) else weights).stem if weights is not None else ""  # weights
+        anno_json = str(Path("../datasets/coco/annotations/instances_val2017.json"))  # annotations
+        pred_json = str("./weights/_predictions.json")  # predictions
+        LOGGER.info(f"\nEvaluating pycocotools mAP... saving {pred_json}...")
+        with open(pred_json, "w") as f:
             json.dump(jdict, f)
 
         try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
@@ -221,14 +304,14 @@ def run(
 
             anno = COCO(anno_json)  # init annotations api
             pred = anno.loadRes(pred_json)  # init predictions api
-            eval = COCOeval(anno, pred, 'bbox')
+            eval = COCOeval(anno, pred, "bbox")
             eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.image_files]  # image IDs to evaluate
             eval.evaluate()
             eval.accumulate()
             eval.summarize()
             map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
         except Exception as e:
-            LOGGER.info(f'pycocotools unable to run: {e}')
+            LOGGER.info(f"pycocotools unable to run: {e}")
 
     # Return results
     model.float()  # for training

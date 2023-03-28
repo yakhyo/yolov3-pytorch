@@ -273,41 +273,18 @@ class LoadImagesAndLabels(torch.utils.data.Dataset):
             image, _, (h, w) = self.load_image(idx)
             # place image in image4
             if i == 0:  # top left
-                x1a, y1a, x2a, y2a = (
-                    max(xc - w, 0),
-                    max(yc - h, 0),
-                    xc,
-                    yc,
-                )  # x_min, y_min, x_max, y_max (large image)
-                x1b, y1b, x2b, y2b = (
-                    w - (x2a - x1a),
-                    h - (y2a - y1a),
-                    w,
-                    h,
-                )  # x_min, y_min, x_max, y_max (small image)
+                # x_min, y_min, x_max, y_max (large image)
+                x1a, y1a, x2a, y2a = max(xc - w, 0), max(yc - h, 0), xc, yc
+                # x_min, y_min, x_max, y_max (small image)
+                x1b, y1b, x2b, y2b = w - (x2a - x1a), h - (y2a - y1a), w, h
             elif i == 1:  # top right
-                x1a, y1a, x2a, y2a = (
-                    xc,
-                    max(yc - h, 0),
-                    min(xc + w, self.input_size * 2),
-                    yc,
-                )
+                x1a, y1a, x2a, y2a = xc, max(yc - h, 0), min(xc + w, self.input_size * 2), yc
                 x1b, y1b, x2b, y2b = 0, h - (y2a - y1a), min(w, x2a - x1a), h
             elif i == 2:  # bottom left
-                x1a, y1a, x2a, y2a = (
-                    max(xc - w, 0),
-                    yc,
-                    xc,
-                    min(self.input_size * 2, yc + h),
-                )
+                x1a, y1a, x2a, y2a = max(xc - w, 0), yc, xc, min(self.input_size * 2, yc + h)
                 x1b, y1b, x2b, y2b = w - (x2a - x1a), 0, w, min(y2a - y1a, h)
             elif i == 3:  # bottom right
-                x1a, y1a, x2a, y2a = (
-                    xc,
-                    yc,
-                    min(xc + w, self.input_size * 2),
-                    min(self.input_size * 2, yc + h),
-                )
+                x1a, y1a, x2a, y2a = xc, yc, min(xc + w, self.input_size * 2), min(self.input_size * 2, yc + h)
                 x1b, y1b, x2b, y2b = 0, 0, min(w, x2a - x1a), min(y2a - y1a, h)
 
             image4[y1a:y2a, x1a:x2a] = image[y1b:y2b, x1b:x2b]  # image4[y_min:y_max, x_min:x_max]
@@ -326,11 +303,6 @@ class LoadImagesAndLabels(torch.utils.data.Dataset):
             np.clip(x, 0, 2 * self.input_size, out=x)  # clip when using random_perspective()
 
         # Augment
-        image4, labels4 = random_perspective(
-            image4,
-            labels4,
-            hyp,
-            border=self.mosaic_border,
-        )  # border to remove
+        image4, labels4 = random_perspective(image4, labels4, hyp, border=self.mosaic_border)  # border to remove
 
         return image4, labels4
