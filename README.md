@@ -7,11 +7,11 @@
 - [YOLOv3 SPP](./src/models/yolov3.py) is built using ultralytics's [`yolov3-spp.yaml`](./configs/yolov3-spp.yaml)
 
 
-| Model                                  | Num. Params |
-|----------------------------------------|:-----------:|
-| [YOLOv3](./src/models/yolov3.py)           |   61.95M    | 
-| [YOLOv3 Tiny](./src/models/yolov3tiny.py) |    8.85M    |  
-| [YOLOv3 SPP](./src/models/yolov3spp.py)       |     63M     | 
+| Model                                        | Num. Params |
+|----------------------------------------------|:-----------:|
+| [YOLOv3](./yolov3/models/yolov3.py)          |   61.95M    | 
+| [YOLOv3 Tiny](./yolov3/models/yolov3tiny.py) |    8.85M    |  
+| [YOLOv3 SPP](./yolov3/models/yolov3spp.py)   |     63M     | 
 
 ## Reference:
 
