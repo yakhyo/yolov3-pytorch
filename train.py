@@ -313,8 +313,6 @@ def train(hyp, opt, device):
 
             # Update best mAP
             fi = fitness(np.array(results).reshape(1, -1))  # weighted combination of [P, R, mAP@.5, mAP@.5-.95]
-            print("best_fitness: ", best_fitness)
-            print("fi score: ", fi)
             if fi > best_fitness:
                 best_fitness = fi
 
