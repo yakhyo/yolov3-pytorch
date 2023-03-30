@@ -123,9 +123,7 @@ def train(hyp, opt, device):
 
     # Scheduler
     lf = linear_lr(hyp, epochs) if opt.linear_lr else one_cycle(hyp, epochs)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer, lr_lambda=lf
-    )  # plot_lr_scheduler(optimizer, scheduler, epochs)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
     # EMA
     ema = ModelEMA(model) if RANK in [-1, 0] else None
@@ -248,10 +246,10 @@ def train(hyp, opt, device):
         optimizer.zero_grad()
         # batch -------------------------------------------------------------
         for i, (
-            imgs,
-            targets,
-            paths,
-            _,
+                imgs,
+                targets,
+                paths,
+                _,
         ) in pbar:
             ni = i + nb * epoch  # number integrated batches (since train start)
             imgs = imgs.to(device, non_blocking=True).float() / 255  # uint8 to float32, 0-255 to 0.0-1.0
