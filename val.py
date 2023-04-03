@@ -7,7 +7,7 @@ import torch
 from tqdm import tqdm
 
 from yolov3 import LOGGER
-from yolov3.models import YOLOv3SPP
+from yolov3.models import YOLOv3SPP, YOLOv3Tiny
 from yolov3.utils.dataset import create_dataloader
 from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy
 from yolov3.utils.metrics import ap_per_class, box_iou
@@ -50,7 +50,7 @@ def run(
     device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
     augment=False,  # augmented inference
     verbose=False,  # verbose output
-    half=True,  # use FP16 half-precision inference
+    half=False,  # use FP16 half-precision inference
     model=None,
     dataloader=None,
     compute_loss=None,
@@ -67,7 +67,7 @@ def run(
 
         # Load model
 
-        model = YOLOv3SPP().to(device)
+        model = YOLOv3Tiny().to(device)
         checkpoint = torch.load(weights, map_location=device)
         names = checkpoint["model"].names
         state_dict = checkpoint["model"].float().state_dict()
@@ -77,7 +77,6 @@ def run(
         stride = int(model.detect.stride.max())  # model stride
         imgsz = check_img_size(imgsz, s=stride)  # check image size
 
-        half = True
         model.half() if half else model.float()
 
         # Data
@@ -190,7 +189,7 @@ def parse_opt():
     parser = argparse.ArgumentParser()
 
     parser.add_argument("--data", type=str, default="data/coco.yaml", help="dataset.yaml path")
-    parser.add_argument("--weights", type=str, default="weights/weights/last.pt", help="model.pt path(s)")
+    parser.add_argument("--weights", type=str, default="weights/last.pt", help="model.pt path(s)")
     parser.add_argument("--batch-size", type=int, default=32, help="batch size")
     parser.add_argument("--imgsz", "--img", "--img-size", type=int, default=640, help="inference size (pixels)")
     parser.add_argument("--conf-thres", type=float, default=0.001, help="confidence threshold")

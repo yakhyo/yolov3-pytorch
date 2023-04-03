@@ -20,14 +20,14 @@ class Conv(nn.Module):
     """Standard convolution block"""
 
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        kernel_size: int = 1,
-        stride: int = 1,
-        padding: Optional[int] = None,
-        groups: int = 1,
-        act=True,
+            self,
+            in_channels: int,
+            out_channels: int,
+            kernel_size: int = 1,
+            stride: int = 1,
+            padding: Optional[int] = None,
+            groups: int = 1,
+            act=True,
     ) -> None:
         super().__init__()
         self.conv = nn.Conv2d(
@@ -53,12 +53,12 @@ class Bottleneck(nn.Module):
     """Standard Bottleneck"""
 
     def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        shortcut: bool = True,
-        groups: int = 1,
-        exp: float = 0.5,
+            self,
+            in_channels: int,
+            out_channels: int,
+            shortcut: bool = True,
+            groups: int = 1,
+            exp: float = 0.5,
     ) -> None:
         super().__init__()
         hidden_channels = int(out_channels * exp)  # hidden channels

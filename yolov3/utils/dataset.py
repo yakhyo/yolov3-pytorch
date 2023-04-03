@@ -27,16 +27,16 @@ WORLD_SIZE = int(os.getenv("WORLD_SIZE", 1))  # DPP
 
 
 def create_dataloader(
-    path,
-    image_size,
-    batch_size,
-    stride,
-    hyp=None,
-    augment=False,
-    rank=-1,
-    workers=16,
-    prefix="",
-    shuffle=False,
+        path,
+        image_size,
+        batch_size,
+        stride,
+        hyp=None,
+        augment=False,
+        rank=-1,
+        workers=16,
+        prefix="",
+        shuffle=False,
 ):
     with torch_distributed_zero_first(rank):  # init dataset *.cache only once if DDP
         dataset = LoadImagesAndLabels(

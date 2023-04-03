@@ -123,9 +123,7 @@ def train(hyp, opt, device):
 
     # Scheduler
     lf = linear_lr(hyp, epochs) if opt.linear_lr else one_cycle(hyp, epochs)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(
-        optimizer, lr_lambda=lf
-    )  # plot_lr_scheduler(optimizer, scheduler, epochs)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda=lf)
 
     # EMA
     ema = ModelEMA(model) if RANK in [-1, 0] else None
@@ -355,8 +353,7 @@ def attempt_load(weights, map_location=None):
 
 def parse_opt(known=False):
     parser = argparse.ArgumentParser()
-    parser.add_argument("--weight", type=str, default="./weights/last.pt", help="initial weights path")
-    parser.add_argument("--cfg", type=str, default="", help="model.yaml path")
+    parser.add_argument("--weight", type=str, default="", help="initial weights path")
     parser.add_argument("--data", type=str, default="./data/coco.yaml", help="dataset.yaml path")
     parser.add_argument("--hyp", type=str, default="./configs/hyp.scratch.yaml", help="hyperparameters path")
     parser.add_argument("--epochs", type=int, default=200)
@@ -371,8 +368,6 @@ def parse_opt(known=False):
     parser.add_argument("--optimizer", type=str, choices=["SGD", "Adam", "AdamW"], default="SGD", help="optimizer")
     parser.add_argument("--sync-bn", action="store_true", help="use SyncBatchNorm, only available in DDP mode")
     parser.add_argument("--workers", type=int, default=16, help="max dataloader workers (per RANK in DDP mode)")
-    parser.add_argument("--name", default="exp", help="save to project/name")
-    parser.add_argument("--exist-ok", action="store_true", help="existing project/name ok, do not increment")
     parser.add_argument("--linear-lr", action="store_true", help="linear LR")
     parser.add_argument("--label-smoothing", type=float, default=0.0, help="Label smoothing epsilon")
     parser.add_argument("--patience", type=int, default=100, help="EarlyStopping patience")
@@ -408,7 +403,6 @@ def main(opt):
 
 
 def run(**kwargs):
-    # Usage: import train; train.run(data='coco128.yaml', image_size=320, weight='yolov3.pt')
     opt = parse_opt(True)
     for k, v in kwargs.items():
         setattr(opt, k, v)

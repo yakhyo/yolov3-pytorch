@@ -99,10 +99,10 @@ def box_candidates(box1, box2, wh_thr=2, ar_thr=20, area_thr=0.1, eps=1e-16):  #
 
 
 def random_perspective(
-    image,
-    targets,
-    params,
-    border=(0, 0),
+        image,
+        targets,
+        params,
+        border=(0, 0),
 ):
     # targets = [cls, xyxy]
     height = image.shape[0] + border[0] * 2  # shape(h,w,c)
@@ -132,10 +132,10 @@ def random_perspective(
     # Translation
     translation = np.eye(3)
     translation[0, 2] = (
-        random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * width
+            random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * width
     )  # x translation (pixels)
     translation[1, 2] = (
-        random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * height
+            random.uniform(0.5 - params["translate"], 0.5 + params["translate"]) * height
     )  # y translation (pixels)
 
     # Combined rotation matrix
