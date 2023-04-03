@@ -1,4 +1,6 @@
 import argparse
+
+import json
 from pathlib import Path
 
 import numpy as np
@@ -9,7 +11,7 @@ from tqdm import tqdm
 from yolov3 import LOGGER
 from yolov3.models import YOLOv3SPP, YOLOv3Tiny
 from yolov3.utils.dataset import create_dataloader
-from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy
+from yolov3.utils.general import check_img_size, colorstr, non_max_suppression, scale_boxes, xywh2xyxy, xyxy2xywh
 from yolov3.utils.metrics import ap_per_class, box_iou
 
 
@@ -38,6 +40,112 @@ def process_batch(detections, labels, iouv):
     return correct
 
 
+def save_one_json(predn, jdict, path, class_map):
+    # Save one JSON result {"image_id": 42, "category_id": 18, "bbox": [258.15, 41.29, 348.26, 243.78], "score": 0.236}
+    image_id = int(path.stem) if path.stem.isnumeric() else path.stem
+    box = xyxy2xywh(predn[:, :4])  # xywh
+    box[:, :2] -= box[:, 2:] / 2  # xy center to top-left corner
+    for p, b in zip(predn.tolist(), box.tolist()):
+        jdict.append(
+            {
+                "image_id": image_id,
+                "category_id": class_map[int(p[5])],
+                "bbox": [round(x, 3) for x in b],
+                "score": round(p[4], 5),
+            }
+        )
+
+
+def coco80_to_coco91_class():  # converts 80-index (val2014) to 91-index (paper)
+    # https://tech.amikelive.com/node-718/what-object-categories-labels-are-in-coco-dataset/
+    # a = np.loadtxt('data/coco.names', dtype='str', delimiter='\n')
+    # b = np.loadtxt('data/coco_paper.names', dtype='str', delimiter='\n')
+    # x1 = [list(a[i] == b).index(True) + 1 for i in range(80)]  # darknet to coco
+    # x2 = [list(b[i] == a).index(True) if any(b[i] == a) else None for i in range(91)]  # coco to darknet
+    return [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+        22,
+        23,
+        24,
+        25,
+        27,
+        28,
+        31,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+        40,
+        41,
+        42,
+        43,
+        44,
+        46,
+        47,
+        48,
+        49,
+        50,
+        51,
+        52,
+        53,
+        54,
+        55,
+        56,
+        57,
+        58,
+        59,
+        60,
+        61,
+        62,
+        63,
+        64,
+        65,
+        67,
+        70,
+        72,
+        73,
+        74,
+        75,
+        76,
+        77,
+        78,
+        79,
+        80,
+        81,
+        82,
+        84,
+        85,
+        86,
+        87,
+        88,
+        89,
+        90,
+    ]
+
+
 @torch.no_grad()
 def run(
     data,
@@ -50,7 +158,7 @@ def run(
     device="",  # cuda device, i.e. 0 or 0,1,2,3 or cpu
     augment=False,  # augmented inference
     verbose=False,  # verbose output
-    half=False,  # use FP16 half-precision inference
+    half=True,  # use FP16 half-precision inference
     model=None,
     dataloader=None,
     compute_loss=None,
@@ -77,6 +185,7 @@ def run(
         stride = int(model.detect.stride.max())  # model stride
         imgsz = check_img_size(imgsz, s=stride)  # check image size
 
+        half = False
         model.half() if half else model.float()
 
         # Data
@@ -107,6 +216,8 @@ def run(
 
     seen = 0
     names = {k: v for k, v in enumerate(model.names if hasattr(model, "names") else model.module.names)}
+
+    class_map = coco80_to_coco91_class()
 
     desc = ("%20s" + "%11s" * 6) % ("Class", "Images", "Labels", "P", "R", "mAP@.5", "mAP@.5:.95")
     p, r, f1, mp, mr, map50, map = 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0
@@ -159,7 +270,8 @@ def run(
                 correct = process_batch(predictions, labelsn, iouv)
 
             stats.append((correct, output[:, 4], output[:, 5], labels[:, 0]))  # (correct, conf, pcls, tcls)
-
+            if True:
+                save_one_json(predictions, jdict, path, class_map)  # append to COCO-JSON dictionary
     # Compute metrics
     stats = [torch.cat(x, 0).cpu().numpy() for x in zip(*stats)]  # to numpy
     if len(stats) and stats[0].any():
@@ -176,6 +288,29 @@ def run(
     if (verbose or (nc < 50 and not training)) and nc > 1 and len(stats):
         for i, c in enumerate(ap_class):
             LOGGER.info(print_format % (names[c], seen, nt[c], p[i], r[i], ap50[i], ap[i]))
+
+        # Save JSON
+    if len(jdict):
+        anno_json = str(Path("../datasets/coco/annotations/instances_val2017.json"))  # annotations
+        pred_json = str("./weights/_predictions.json")  # predictions
+        LOGGER.info(f"\nEvaluating pycocotools mAP... saving {pred_json}...")
+        with open(pred_json, "w") as f:
+            json.dump(jdict, f)
+
+        try:  # https://github.com/cocodataset/cocoapi/blob/master/PythonAPI/pycocoEvalDemo.ipynb
+            from pycocotools.coco import COCO
+            from pycocotools.cocoeval import COCOeval
+
+            anno = COCO(anno_json)  # init annotations api
+            pred = anno.loadRes(pred_json)  # init predictions api
+            eval = COCOeval(anno, pred, "bbox")
+            eval.params.imgIds = [int(Path(x).stem) for x in dataloader.dataset.image_files]  # image IDs to evaluate
+            eval.evaluate()
+            eval.accumulate()
+            eval.summarize()
+            map, map50 = eval.stats[:2]  # update results (mAP@0.5:0.95, mAP@0.5)
+        except Exception as e:
+            LOGGER.info(f"pycocotools unable to run: {e}")
 
     # Return results
     model.float()  # for training

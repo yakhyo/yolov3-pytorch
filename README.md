@@ -1,10 +1,36 @@
 ## YOLO v3: Backbone, Head, Detect
 
-## Contents:
 
-- [YOLOv3](./src/models/yolov3.py) is built using ultralytics's [`yolov3.yaml`](./configs/yolov3.yaml)
-- [YOLOv3 Tiny](./src/models/yolov3tiny.py) is built using ultralytics's [`yolov3tiny.yaml`](./configs/yolov3-tiny.yaml)
-- [YOLOv3 SPP](./src/models/yolov3.py) is built using ultralytics's [`yolov3-spp.yaml`](./configs/yolov3-spp.yaml)
+Train the model
+```commandline
+python -m torch.distributed.run --nproc_per_node 1 train.py --epochs 300 --batch-size 32 --weight "" --linear-lr
+
+```
+
+
+Evaluate (Reproduce the results):
+```commandline
+python val.py --weights weights/yolov3-tiny.pt
+```
+
+Results of YOLOv3 Tiny model:
+```
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.169
+ Average Precision  (AP) @[ IoU=0.50      | area=   all | maxDets=100 ] = 0.339
+ Average Precision  (AP) @[ IoU=0.75      | area=   all | maxDets=100 ] = 0.149
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.078
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.210
+ Average Precision  (AP) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.224
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=  1 ] = 0.173
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets= 10 ] = 0.311
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=   all | maxDets=100 ] = 0.357
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= small | maxDets=100 ] = 0.185
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area=medium | maxDets=100 ] = 0.425
+ Average Recall     (AR) @[ IoU=0.50:0.95 | area= large | maxDets=100 ] = 0.476
+
+```
+
+
 
 
 | Model                                        | Num. Params |
